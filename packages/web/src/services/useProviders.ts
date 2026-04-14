@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { providerService } from '../services/providerService';
 import type { ProviderConfig } from '../../../api/src/providers/types';
 

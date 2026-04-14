@@ -8,5 +8,8 @@
     "build:api": "pnpm --filter api build",
     "build:web": "pnpm --filter web build"
   },
-  "packageManager": "pnpm@10.33.0"
+  "packageManager": "pnpm@10.33.0",
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.10.1"
+  }
 }

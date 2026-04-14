@@ -1,4 +1,4 @@
-import { Card, Button, Empty, message, Modal, Form, Input, Select, Switch, Space } from 'antd';
+import { Card, Button, Empty, message, Modal, Form, Input, Select, Switch } from 'antd';
 import { PlusOutlined, DeleteOutlined, EditOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import { useProviders } from '../services/useProviders';
 import { providerService } from '../services/providerService';
@@ -6,7 +6,7 @@ import type { ProviderConfig, CreateProviderInput } from '../../../api/src/provi
 import { useState } from 'react';
 
 export const SettingsPage: React.FC = () => {
-  const { providers, loading, refresh } = useProviders();
+  const { providers, refresh } = useProviders();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProvider, setEditingProvider] = useState<ProviderConfig | null>(null);
   const [form] = Form.useForm();
@@ -35,7 +35,7 @@ export const SettingsPage: React.FC = () => {
 
   const handleTest = async () => {
     try {
-      const values = await form.validateFields();
+      await form.validateFields();
       // 如果是新建，先临时保存以获取 ID，或者直接在本地测试（这里选择先调用后端接口）
       // 为了简化 MVP，我们假设用户必须先保存才能测试，或者我们在弹窗里增加一个“仅测试”逻辑
       // 考虑到用户体验，我们先检查是否有 ID
