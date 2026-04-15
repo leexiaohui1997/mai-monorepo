@@ -5,8 +5,10 @@
   "scripts": {
     "dev:api": "pnpm --filter api dev",
     "dev:web": "pnpm --filter web dev",
+    "dev:desktop": "pnpm --filter desktop dev",
     "build:api": "pnpm --filter api build",
-    "build:web": "pnpm --filter web build"
+    "build:web": "pnpm --filter web build",
+    "build:desktop": "pnpm --filter desktop build"
   },
   "packageManager": "pnpm@10.33.0",
   "devDependencies": {

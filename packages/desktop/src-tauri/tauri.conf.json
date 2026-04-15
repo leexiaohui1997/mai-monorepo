@@ -6,7 +6,7 @@
   "build": {
     "frontendDist": "../../web/dist",
     "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "pnpm --filter web dev",
+    "beforeDevCommand": "node scripts/dev-launcher.js",
     "beforeBuildCommand": "pnpm --filter api build && pnpm --filter web build"
   },
   "app": {
