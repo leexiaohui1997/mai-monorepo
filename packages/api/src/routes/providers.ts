@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { ProviderManager } from '../providers/manager';
 import type { ApiResponse } from '../providers/types';
+import logger from '../utils/logger';
 
 const router = Router();
 const manager = new ProviderManager();
@@ -9,8 +10,10 @@ const manager = new ProviderManager();
 router.get('/', async (req, res) => {
   try {
     const providers = await manager.listProviders();
+    logger.info({ count: providers.length }, '获取供应商列表');
     res.json({ success: true, data: providers });
   } catch (error: any) {
+    logger.error({ error: error.message, stack: error.stack }, '获取供应商列表失败');
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -20,10 +23,13 @@ router.get('/:id', async (req, res) => {
   try {
     const provider = await manager['storage'].findById(req.params.id);
     if (!provider) {
+      logger.warn({ id: req.params.id }, '供应商不存在');
       return res.status(404).json({ success: false, error: 'Provider not found' });
     }
+    logger.info({ id: req.params.id }, '获取供应商详情');
     res.json({ success: true, data: provider });
   } catch (error: any) {
+    logger.error({ error: error.message, stack: error.stack, id: req.params.id }, '获取供应商详情失败');
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -32,8 +38,10 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const provider = await manager.createProvider(req.body);
+    logger.info({ id: provider.id, type: provider.type, name: provider.name }, '创建供应商成功');
     res.status(201).json({ success: true, data: provider });
   } catch (error: any) {
+    logger.error({ error: error.message, stack: error.stack }, '创建供应商失败');
     res.status(400).json({ success: false, error: error.message });
   }
 });
@@ -43,10 +51,13 @@ router.put('/:id', async (req, res) => {
   try {
     const provider = await manager.updateProvider(req.params.id, req.body);
     if (!provider) {
+      logger.warn({ id: req.params.id }, '供应商不存在，无法更新');
       return res.status(404).json({ success: false, error: 'Provider not found' });
     }
+    logger.info({ id: req.params.id }, '更新供应商成功');
     res.json({ success: true, data: provider });
   } catch (error: any) {
+    logger.error({ error: error.message, stack: error.stack, id: req.params.id }, '更新供应商失败');
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -56,10 +67,13 @@ router.delete('/:id', async (req, res) => {
   try {
     const deleted = await manager.deleteProvider(req.params.id);
     if (!deleted) {
+      logger.warn({ id: req.params.id }, '供应商不存在，无法删除');
       return res.status(404).json({ success: false, error: 'Provider not found' });
     }
+    logger.info({ id: req.params.id }, '删除供应商成功');
     res.json({ success: true, message: 'Deleted successfully' });
   } catch (error: any) {
+    logger.error({ error: error.message, stack: error.stack, id: req.params.id }, '删除供应商失败');
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -68,8 +82,10 @@ router.delete('/:id', async (req, res) => {
 router.post('/:id/test', async (req, res) => {
   try {
     const result = await manager.testConnection(req.params.id);
+    logger.info({ id: req.params.id, success: result.success }, '供应商连接测试完成');
     res.json(result);
   } catch (error: any) {
+    logger.error({ error: error.message, stack: error.stack, id: req.params.id }, '供应商连接测试失败');
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -79,10 +95,13 @@ router.post('/:id/set-default', async (req, res) => {
   try {
     const provider = await manager.setDefaultProvider(req.params.id);
     if (!provider) {
+      logger.warn({ id: req.params.id }, '供应商不存在，无法设置为默认');
       return res.status(404).json({ success: false, error: 'Provider not found' });
     }
+    logger.info({ id: req.params.id }, '设置默认供应商成功');
     res.json({ success: true, data: provider });
   } catch (error: any) {
+    logger.error({ error: error.message, stack: error.stack, id: req.params.id }, '设置默认供应商失败');
     res.status(500).json({ success: false, error: error.message });
   }
 });

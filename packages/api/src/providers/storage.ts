@@ -1,5 +1,7 @@
 import { getProvidersFilePath } from '../config/paths';
 import type { ProviderConfig } from './types';
+import logger from '../utils/logger';
+import { readFile, writeFile, fileExists } from '../utils/io';
 
 export class ProviderStorage {
   private filePath: string;
@@ -13,22 +15,27 @@ export class ProviderStorage {
    */
   async readAll(): Promise<ProviderConfig[]> {
     try {
-      const file = Bun.file(this.filePath);
-      if (!(await file.exists())) {
+      const filePath = this.filePath;
+      if (!(await fileExists(filePath))) {
+        logger.debug({ filePath }, '供应商配置文件不存在，返回空数组');
         return [];
       }
       
-      const text = await file.text();
+      const text = await readFile(filePath);
       if (!text.trim()) {
+        logger.debug({ filePath }, '供应商配置文件为空，返回空数组');
         return [];
       }
 
-      return text
+      const providers = text
         .split('\n')
         .filter(line => line.trim())
         .map(line => JSON.parse(line));
-    } catch (error) {
-      console.error('[Storage] Error reading providers:', error);
+      
+      logger.debug({ count: providers.length, filePath }, '从文件加载供应商配置');
+      return providers;
+    } catch (error: any) {
+      logger.error({ error: error.message, stack: error.stack, filePath: this.filePath }, '读取供应商配置文件失败');
       return [];
     }
   }
@@ -53,9 +60,14 @@ export class ProviderStorage {
       updatedAt: now,
     };
 
-    const file = Bun.file(this.filePath);
-    const content = (await file.exists()) ? await file.text() : '';
-    await Bun.write(this.filePath, content + JSON.stringify(newProvider) + '\n');
+    try {
+      const content = (await fileExists(this.filePath)) ? await readFile(this.filePath) : '';
+      await writeFile(this.filePath, content + JSON.stringify(newProvider) + '\n');
+      logger.debug({ id: newProvider.id, filePath: this.filePath }, '供应商已写入文件');
+    } catch (error: any) {
+      logger.error({ error: error.message, stack: error.stack, filePath: this.filePath }, '写入供应商到文件失败');
+      throw error;
+    }
 
     return newProvider;
   }
@@ -68,6 +80,7 @@ export class ProviderStorage {
     const index = providers.findIndex(p => p.id === id);
     
     if (index === -1) {
+      logger.debug({ id }, '供应商不存在，无法更新');
       return null;
     }
 
@@ -77,7 +90,14 @@ export class ProviderStorage {
       updatedAt: new Date().toISOString(),
     };
 
-    await this._writeAll(providers);
+    try {
+      await this._writeAll(providers);
+      logger.debug({ id }, '供应商已在文件中更新');
+    } catch (error: any) {
+      logger.error({ error: error.message, stack: error.stack, id }, '在文件中更新供应商失败');
+      throw error;
+    }
+    
     return providers[index];
   }
 
@@ -89,10 +109,18 @@ export class ProviderStorage {
     const filtered = providers.filter(p => p.id !== id);
     
     if (filtered.length === providers.length) {
+      logger.debug({ id }, '供应商不存在，无法删除');
       return false;
     }
 
-    await this._writeAll(filtered);
+    try {
+      await this._writeAll(filtered);
+      logger.debug({ id }, '供应商已从文件中删除');
+    } catch (error: any) {
+      logger.error({ error: error.message, stack: error.stack, id }, '从文件中删除供应商失败');
+      throw error;
+    }
+    
     return true;
   }
 
@@ -112,7 +140,14 @@ export class ProviderStorage {
       return { ...p, isDefault: false };
     });
 
-    await this._writeAll(updated);
+    try {
+      await this._writeAll(updated);
+      logger.debug({ id }, '默认供应商已在文件中更新');
+    } catch (error: any) {
+      logger.error({ error: error.message, stack: error.stack, id }, '在文件中更新默认供应商失败');
+      throw error;
+    }
+    
     return targetProvider;
   }
 
@@ -120,7 +155,13 @@ export class ProviderStorage {
    * 内部方法：重写整个文件
    */
   private async _writeAll(providers: ProviderConfig[]): Promise<void> {
-    const content = providers.map(p => JSON.stringify(p)).join('\n') + '\n';
-    await Bun.write(this.filePath, content);
+    try {
+      const content = providers.map(p => JSON.stringify(p)).join('\n') + '\n';
+      await writeFile(this.filePath, content);
+      logger.debug({ count: providers.length, filePath: this.filePath }, '所有供应商已写入文件');
+    } catch (error: any) {
+      logger.error({ error: error.message, stack: error.stack, filePath: this.filePath }, '写入所有供应商到文件失败');
+      throw error;
+    }
   }
 }

@@ -7,9 +7,10 @@
     "frontendDist": "../../web/dist",
     "devUrl": "http://localhost:5173",
     "beforeDevCommand": "node scripts/dev-launcher.js",
-    "beforeBuildCommand": "pnpm --filter api build && pnpm --filter web build"
+    "beforeBuildCommand": "node scripts/build-sidecar.js && pnpm --filter web build"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
         "title": "MAI Desktop",
@@ -32,6 +33,12 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "resources": [
+      "binaries/mai-api-macos/**/*"
+    ],
+    "macOS": {
+      "entitlements": "Entitlements.plist"
+    }
   }
 }
