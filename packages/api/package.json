@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "bun run --hot src/index.ts",
     "build": "bun build src/index.ts --outdir dist --target bun",
+    "typecheck": "tsc --noEmit",
     "compile:win": "bun build src/index.ts --compile --outfile dist/mai-api.exe",
     "compile:mac-arm": "bun build src/index.ts --compile --outfile dist/mai-api",
     "compile:mac-intel": "bun build src/index.ts --compile --outfile dist/mai-api"

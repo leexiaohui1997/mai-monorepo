@@ -88,11 +88,12 @@ router.delete('/:id', async (req, res) => {
   }
 })
 
-// POST /api/providers/:id/test - 测试连接
+// POST /api/providers/:id/test - 测试连接（支持 modelId 查询参数）
 router.post('/:id/test', async (req, res) => {
   try {
-    const result = await manager.testConnection(req.params.id)
-    logger.info({ id: req.params.id, success: result.success }, '供应商连接测试完成')
+    const modelId = req.body.modelId as string | undefined
+    const result = await manager.testConnection(req.params.id, modelId)
+    logger.info({ id: req.params.id, modelId, success: result.success }, '供应商连接测试完成')
     res.json(result)
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error)
@@ -116,6 +117,68 @@ router.post('/:id/set-default', async (req, res) => {
     const msg = error instanceof Error ? error.message : String(error)
     const stack = error instanceof Error ? error.stack : undefined
     logger.error({ error: msg, stack, id: req.params.id }, '设置默认供应商失败')
+    res.status(500).json({ success: false, error: msg })
+  }
+})
+
+// ---- 模型管理路由 ----
+
+// POST /api/providers/:id/models - 添加模型
+router.post('/:id/models', async (req, res) => {
+  try {
+    const model = await manager.addModel(req.params.id, req.body)
+    if (!model) {
+      return res.status(404).json({ success: false, error: 'Provider not found' })
+    }
+    res.status(201).json({ success: true, data: model })
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error)
+    logger.error({ error: msg, id: req.params.id }, '添加模型失败')
+    res.status(500).json({ success: false, error: msg })
+  }
+})
+
+// PUT /api/providers/:id/models/:modelId - 更新模型
+router.put('/:id/models/:modelId', async (req, res) => {
+  try {
+    const model = await manager.updateModel(req.params.id, req.params.modelId, req.body)
+    if (!model) {
+      return res.status(404).json({ success: false, error: 'Model not found' })
+    }
+    res.json({ success: true, data: model })
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error)
+    logger.error({ error: msg, id: req.params.id }, '更新模型失败')
+    res.status(500).json({ success: false, error: msg })
+  }
+})
+
+// DELETE /api/providers/:id/models/:modelId - 删除模型
+router.delete('/:id/models/:modelId', async (req, res) => {
+  try {
+    const deleted = await manager.deleteModel(req.params.id, req.params.modelId)
+    if (!deleted) {
+      return res.status(404).json({ success: false, error: 'Model not found' })
+    }
+    res.json({ success: true, message: 'Model deleted' })
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error)
+    logger.error({ error: msg, id: req.params.id }, '删除模型失败')
+    res.status(500).json({ success: false, error: msg })
+  }
+})
+
+// POST /api/providers/:id/models/:modelId/set-default - 设置默认模型
+router.post('/:id/models/:modelId/set-default', async (req, res) => {
+  try {
+    const model = await manager.setDefaultModel(req.params.id, req.params.modelId)
+    if (!model) {
+      return res.status(404).json({ success: false, error: 'Model not found' })
+    }
+    res.json({ success: true, data: model })
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error)
+    logger.error({ error: msg, id: req.params.id }, '设置默认模型失败')
     res.status(500).json({ success: false, error: msg })
   }
 })

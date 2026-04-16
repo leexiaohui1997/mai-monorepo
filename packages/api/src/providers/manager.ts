@@ -6,7 +6,14 @@ import logger from '../utils/logger'
 
 import { ProviderStorage } from './storage'
 
-import type { ProviderConfig, CreateProviderInput, UpdateProviderInput } from './types'
+import type {
+  ProviderConfig,
+  CreateProviderInput,
+  UpdateProviderInput,
+  CreateModelInput,
+  UpdateModelInput,
+  ModelConfig,
+} from './types'
 
 export class ProviderManager {
   private storage: ProviderStorage
@@ -22,15 +29,15 @@ export class ProviderManager {
   async createProvider(input: CreateProviderInput): Promise<ProviderConfig> {
     logger.info({ providerType: input.type, name: input.name }, '正在创建供应商')
 
-    // 简单校验
     if (!input.apiKey) {
       throw new Error('API Key is required')
     }
 
     const config: Omit<ProviderConfig, 'id' | 'createdAt' | 'updatedAt'> = {
       ...input,
+      models: input.models ?? [],
       enabled: true,
-      isDefault: false, // 创建时默认不为默认，需手动设置
+      isDefault: false,
     }
 
     const newProvider = await this.storage.create(config)
@@ -76,33 +83,132 @@ export class ProviderManager {
     return result
   }
 
-  async testConnection(id: string): Promise<{ success: boolean; message: string }> {
-    logger.info({ id }, '正在测试供应商连接')
+  // ---- 模型管理方法 ----
+
+  async addModel(providerId: string, input: CreateModelInput): Promise<ModelConfig | null> {
+    logger.info({ providerId }, '正在添加模型')
+    const provider = await this.storage.findById(providerId)
+    if (!provider) {
+      return null
+    }
+
+    const newModel: ModelConfig = {
+      id: crypto.randomUUID(),
+      name: input.name,
+      displayName: input.displayName,
+      isDefault: false,
+    }
+    provider.models.push(newModel)
+    await this.storage.update(providerId, { models: provider.models } as Partial<ProviderConfig>)
+    logger.info({ providerId, modelId: newModel.id }, '模型添加成功')
+    return newModel
+  }
+
+  async updateModel(
+    providerId: string,
+    modelId: string,
+    input: UpdateModelInput,
+  ): Promise<ModelConfig | null> {
+    logger.info({ providerId, modelId }, '正在更新模型')
+    const provider = await this.storage.findById(providerId)
+    if (!provider) {
+      return null
+    }
+
+    const model = provider.models.find((m) => m.id === modelId)
+    if (!model) {
+      return null
+    }
+
+    Object.assign(model, input)
+    await this.storage.update(providerId, { models: provider.models } as Partial<ProviderConfig>)
+    logger.info({ providerId, modelId }, '模型更新成功')
+    return model
+  }
+
+  async deleteModel(providerId: string, modelId: string): Promise<boolean> {
+    logger.info({ providerId, modelId }, '正在删除模型')
+    const provider = await this.storage.findById(providerId)
+    if (!provider) {
+      return false
+    }
+
+    const index = provider.models.findIndex((m) => m.id === modelId)
+    if (index === -1) {
+      return false
+    }
+
+    provider.models.splice(index, 1)
+    await this.storage.update(providerId, { models: provider.models } as Partial<ProviderConfig>)
+    logger.info({ providerId, modelId }, '模型删除成功')
+    return true
+  }
+
+  async setDefaultModel(providerId: string, modelId: string): Promise<ModelConfig | null> {
+    logger.info({ providerId, modelId }, '正在设置默认模型')
+    const provider = await this.storage.findById(providerId)
+    if (!provider) {
+      return null
+    }
+
+    let target: ModelConfig | null = null
+    provider.models.forEach((m) => {
+      m.isDefault = m.id === modelId
+      if (m.isDefault) {
+        target = m
+      }
+    })
+
+    if (!target) {
+      return null
+    }
+
+    await this.storage.update(providerId, { models: provider.models } as Partial<ProviderConfig>)
+    logger.info({ providerId, modelId }, '默认模型设置成功')
+    return target
+  }
+
+  // ---- 连接测试 ----
+
+  async testConnection(
+    id: string,
+    modelId?: string,
+  ): Promise<{ success: boolean; message: string }> {
+    logger.info({ id, modelId }, '正在测试供应商连接')
     const provider = await this.storage.findById(id)
     if (!provider) {
-      logger.warn({ id }, '供应商不存在，无法测试连接')
       return { success: false, message: 'Provider not found' }
     }
 
     try {
-      const model = this.createModel(provider)
-      await generateText({ model, prompt: 'Hi', maxTokens: 1 })
-      logger.info({ id }, '供应商连接测试成功')
+      const modelName = this.resolveModelName(provider, modelId)
+      const aiModel = this.createAiModel(provider, modelName)
+      await generateText({ model: aiModel, prompt: 'Hi', maxTokens: 1 })
+      logger.info({ id, modelName }, '供应商连接测试成功')
       return { success: true, message: 'Connection successful' }
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'Connection failed'
-      const stack = error instanceof Error ? error.stack : undefined
-      logger.error({ error: msg, stack, id }, '供应商连接测试失败')
+      logger.error({ error: msg, id }, '供应商连接测试失败')
       return { success: false, message: msg }
     }
   }
 
-  private createModel(provider: ProviderConfig) {
+  private resolveModelName(provider: ProviderConfig, modelId?: string): string {
+    if (modelId) {
+      const found = provider.models.find((m) => m.id === modelId)
+      if (found) return found.name
+    }
+    const defaultModel = provider.models.find((m) => m.isDefault)
+    if (defaultModel) return defaultModel.name
+    return provider.type === 'anthropic' ? 'claude-3-haiku-20240307' : 'gpt-3.5-turbo'
+  }
+
+  private createAiModel(provider: ProviderConfig, modelName: string) {
     if (provider.type === 'anthropic') {
       const anthropic = createAnthropic({ apiKey: provider.apiKey, baseURL: provider.baseURL })
-      return anthropic(provider.model || 'claude-3-haiku-20240307')
+      return anthropic(modelName)
     }
     const openai = createOpenAI({ apiKey: provider.apiKey, baseURL: provider.baseURL })
-    return openai(provider.model || 'gpt-3.5-turbo')
+    return openai(modelName)
   }
 }

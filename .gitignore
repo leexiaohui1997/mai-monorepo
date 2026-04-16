@@ -19,6 +19,8 @@ build
 .vscode/*
 !.vscode/extensions.json
 .codebuddy
+.lingma/skills/openspec-*/*
+.lingma/commands/
 .idea
 .DS_Store
 *.suo
@@ -30,3 +32,5 @@ build
 # MAI Data
 data/
 .mai/
+
+openspec/

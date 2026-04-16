@@ -2,7 +2,7 @@ import { getProvidersFilePath } from '../config/paths'
 import { readFile, writeFile, fileExists } from '../utils/io'
 import logger from '../utils/logger'
 
-import type { ProviderConfig } from './types'
+import type { ProviderConfig, ModelConfig } from './types'
 
 export class ProviderStorage {
   private filePath: string
@@ -28,10 +28,16 @@ export class ProviderStorage {
         return []
       }
 
-      const providers = text
+      const raw = text
         .split('\n')
         .filter((line) => line.trim())
         .map((line) => JSON.parse(line))
+
+      const { providers, migrated } = this._migrateIfNeeded(raw)
+      if (migrated) {
+        await this._writeAll(providers)
+        logger.info({ count: providers.length }, '旧格式供应商数据已自动迁移')
+      }
 
       logger.debug({ count: providers.length, filePath }, '从文件加载供应商配置')
       return providers
@@ -162,6 +168,33 @@ export class ProviderStorage {
     }
 
     return targetProvider
+  }
+
+  /**
+   * 内部方法：检测旧格式并迁移（model → models）
+   */
+  private _migrateIfNeeded(raw: Record<string, unknown>[]): {
+    providers: ProviderConfig[]
+    migrated: boolean
+  } {
+    let migrated = false
+    const providers = raw.map((item) => {
+      if (!Array.isArray(item.models)) {
+        migrated = true
+        return this._migrateProvider(item)
+      }
+      return item as unknown as ProviderConfig
+    })
+    return { providers, migrated }
+  }
+
+  private _migrateProvider(item: Record<string, unknown>): ProviderConfig {
+    const oldModel = typeof item.model === 'string' ? item.model : ''
+    const models: ModelConfig[] = oldModel
+      ? [{ id: crypto.randomUUID(), name: oldModel, displayName: oldModel, isDefault: true }]
+      : []
+    const { model: _, ...rest } = item
+    return { ...rest, models } as unknown as ProviderConfig
   }
 
   /**

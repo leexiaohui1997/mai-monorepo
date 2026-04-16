@@ -1,10 +1,17 @@
+export interface ModelConfig {
+  id: string
+  name: string
+  displayName: string
+  isDefault: boolean
+}
+
 export interface ProviderConfig {
   id: string
   name: string
   type: 'openai' | 'anthropic' | 'custom'
   apiKey: string
   baseURL?: string
-  model?: string
+  models: ModelConfig[]
   enabled: boolean
   isDefault: boolean
   createdAt: string
@@ -16,7 +23,7 @@ export interface CreateProviderInput {
   type: 'openai' | 'anthropic' | 'custom'
   apiKey: string
   baseURL?: string
-  model?: string
+  models?: ModelConfig[]
 }
 
 export interface UpdateProviderInput {
@@ -24,9 +31,18 @@ export interface UpdateProviderInput {
   type?: 'openai' | 'anthropic' | 'custom'
   apiKey?: string
   baseURL?: string
-  model?: string
   enabled?: boolean
   isDefault?: boolean
+}
+
+export interface CreateModelInput {
+  name: string
+  displayName: string
+}
+
+export interface UpdateModelInput {
+  name?: string
+  displayName?: string
 }
 
 export interface ApiResponse<T = unknown> {

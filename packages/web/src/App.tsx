@@ -1,4 +1,5 @@
-import { Spin } from 'antd'
+import { ConfigProvider, Spin } from 'antd'
+import zhCN from 'antd/es/locale/zh_CN'
 import { useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 
@@ -31,19 +32,21 @@ function EnvGuard() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<EnvGuard />} />
-        <Route path="/setup" element={<SetupPage />} />
-        <Route
-          path="/settings"
-          element={
-            <MainLayout>
-              <SettingsPage />
-            </MainLayout>
-          }
-        />
-      </Routes>
-    </BrowserRouter>
+    <ConfigProvider locale={zhCN}>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<EnvGuard />} />
+          <Route path="/setup" element={<SetupPage />} />
+          <Route
+            path="/settings"
+            element={
+              <MainLayout>
+                <SettingsPage />
+              </MainLayout>
+            }
+          />
+        </Routes>
+      </BrowserRouter>
+    </ConfigProvider>
   )
 }
