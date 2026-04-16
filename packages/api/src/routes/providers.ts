@@ -1,109 +1,123 @@
-import { Router } from 'express';
-import { ProviderManager } from '../providers/manager';
-import type { ApiResponse } from '../providers/types';
-import logger from '../utils/logger';
+import { Router } from 'express'
 
-const router = Router();
-const manager = new ProviderManager();
+import { ProviderManager } from '../providers/manager'
+import logger from '../utils/logger'
+
+const router = Router()
+const manager = new ProviderManager()
 
 // GET /api/providers - 列表查询
 router.get('/', async (req, res) => {
   try {
-    const providers = await manager.listProviders();
-    logger.info({ count: providers.length }, '获取供应商列表');
-    res.json({ success: true, data: providers });
-  } catch (error: any) {
-    logger.error({ error: error.message, stack: error.stack }, '获取供应商列表失败');
-    res.status(500).json({ success: false, error: error.message });
+    const providers = await manager.listProviders()
+    logger.info({ count: providers.length }, '获取供应商列表')
+    res.json({ success: true, data: providers })
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error)
+    const stack = error instanceof Error ? error.stack : undefined
+    logger.error({ error: msg, stack }, '获取供应商列表失败')
+    res.status(500).json({ success: false, error: msg })
   }
-});
+})
 
 // GET /api/providers/:id - 详情查询
 router.get('/:id', async (req, res) => {
   try {
-    const provider = await manager['storage'].findById(req.params.id);
+    const provider = await manager['storage'].findById(req.params.id)
     if (!provider) {
-      logger.warn({ id: req.params.id }, '供应商不存在');
-      return res.status(404).json({ success: false, error: 'Provider not found' });
+      logger.warn({ id: req.params.id }, '供应商不存在')
+      return res.status(404).json({ success: false, error: 'Provider not found' })
     }
-    logger.info({ id: req.params.id }, '获取供应商详情');
-    res.json({ success: true, data: provider });
-  } catch (error: any) {
-    logger.error({ error: error.message, stack: error.stack, id: req.params.id }, '获取供应商详情失败');
-    res.status(500).json({ success: false, error: error.message });
+    logger.info({ id: req.params.id }, '获取供应商详情')
+    res.json({ success: true, data: provider })
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error)
+    const stack = error instanceof Error ? error.stack : undefined
+    logger.error({ error: msg, stack, id: req.params.id }, '获取供应商详情失败')
+    res.status(500).json({ success: false, error: msg })
   }
-});
+})
 
 // POST /api/providers - 创建供应商
 router.post('/', async (req, res) => {
   try {
-    const provider = await manager.createProvider(req.body);
-    logger.info({ id: provider.id, type: provider.type, name: provider.name }, '创建供应商成功');
-    res.status(201).json({ success: true, data: provider });
-  } catch (error: any) {
-    logger.error({ error: error.message, stack: error.stack }, '创建供应商失败');
-    res.status(400).json({ success: false, error: error.message });
+    const provider = await manager.createProvider(req.body)
+    logger.info({ id: provider.id, type: provider.type, name: provider.name }, '创建供应商成功')
+    res.status(201).json({ success: true, data: provider })
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error)
+    const stack = error instanceof Error ? error.stack : undefined
+    logger.error({ error: msg, stack }, '创建供应商失败')
+    res.status(400).json({ success: false, error: msg })
   }
-});
+})
 
 // PUT /api/providers/:id - 更新供应商
 router.put('/:id', async (req, res) => {
   try {
-    const provider = await manager.updateProvider(req.params.id, req.body);
+    const provider = await manager.updateProvider(req.params.id, req.body)
     if (!provider) {
-      logger.warn({ id: req.params.id }, '供应商不存在，无法更新');
-      return res.status(404).json({ success: false, error: 'Provider not found' });
+      logger.warn({ id: req.params.id }, '供应商不存在，无法更新')
+      return res.status(404).json({ success: false, error: 'Provider not found' })
     }
-    logger.info({ id: req.params.id }, '更新供应商成功');
-    res.json({ success: true, data: provider });
-  } catch (error: any) {
-    logger.error({ error: error.message, stack: error.stack, id: req.params.id }, '更新供应商失败');
-    res.status(500).json({ success: false, error: error.message });
+    logger.info({ id: req.params.id }, '更新供应商成功')
+    res.json({ success: true, data: provider })
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error)
+    const stack = error instanceof Error ? error.stack : undefined
+    logger.error({ error: msg, stack, id: req.params.id }, '更新供应商失败')
+    res.status(500).json({ success: false, error: msg })
   }
-});
+})
 
 // DELETE /api/providers/:id - 删除供应商
 router.delete('/:id', async (req, res) => {
   try {
-    const deleted = await manager.deleteProvider(req.params.id);
+    const deleted = await manager.deleteProvider(req.params.id)
     if (!deleted) {
-      logger.warn({ id: req.params.id }, '供应商不存在，无法删除');
-      return res.status(404).json({ success: false, error: 'Provider not found' });
+      logger.warn({ id: req.params.id }, '供应商不存在，无法删除')
+      return res.status(404).json({ success: false, error: 'Provider not found' })
     }
-    logger.info({ id: req.params.id }, '删除供应商成功');
-    res.json({ success: true, message: 'Deleted successfully' });
-  } catch (error: any) {
-    logger.error({ error: error.message, stack: error.stack, id: req.params.id }, '删除供应商失败');
-    res.status(500).json({ success: false, error: error.message });
+    logger.info({ id: req.params.id }, '删除供应商成功')
+    res.json({ success: true, message: 'Deleted successfully' })
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error)
+    const stack = error instanceof Error ? error.stack : undefined
+    logger.error({ error: msg, stack, id: req.params.id }, '删除供应商失败')
+    res.status(500).json({ success: false, error: msg })
   }
-});
+})
 
 // POST /api/providers/:id/test - 测试连接
 router.post('/:id/test', async (req, res) => {
   try {
-    const result = await manager.testConnection(req.params.id);
-    logger.info({ id: req.params.id, success: result.success }, '供应商连接测试完成');
-    res.json(result);
-  } catch (error: any) {
-    logger.error({ error: error.message, stack: error.stack, id: req.params.id }, '供应商连接测试失败');
-    res.status(500).json({ success: false, error: error.message });
+    const result = await manager.testConnection(req.params.id)
+    logger.info({ id: req.params.id, success: result.success }, '供应商连接测试完成')
+    res.json(result)
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error)
+    const stack = error instanceof Error ? error.stack : undefined
+    logger.error({ error: msg, stack, id: req.params.id }, '供应商连接测试失败')
+    res.status(500).json({ success: false, error: msg })
   }
-});
+})
 
 // POST /api/providers/:id/set-default - 设为默认
 router.post('/:id/set-default', async (req, res) => {
   try {
-    const provider = await manager.setDefaultProvider(req.params.id);
+    const provider = await manager.setDefaultProvider(req.params.id)
     if (!provider) {
-      logger.warn({ id: req.params.id }, '供应商不存在，无法设置为默认');
-      return res.status(404).json({ success: false, error: 'Provider not found' });
+      logger.warn({ id: req.params.id }, '供应商不存在，无法设置为默认')
+      return res.status(404).json({ success: false, error: 'Provider not found' })
     }
-    logger.info({ id: req.params.id }, '设置默认供应商成功');
-    res.json({ success: true, data: provider });
-  } catch (error: any) {
-    logger.error({ error: error.message, stack: error.stack, id: req.params.id }, '设置默认供应商失败');
-    res.status(500).json({ success: false, error: error.message });
+    logger.info({ id: req.params.id }, '设置默认供应商成功')
+    res.json({ success: true, data: provider })
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error)
+    const stack = error instanceof Error ? error.stack : undefined
+    logger.error({ error: msg, stack, id: req.params.id }, '设置默认供应商失败')
+    res.status(500).json({ success: false, error: msg })
   }
-});
+})
 
-export default router;
+export default router

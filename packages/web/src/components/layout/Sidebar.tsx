@@ -1,16 +1,26 @@
-import { Layout, Menu } from 'antd';
-import { SettingOutlined } from '@ant-design/icons';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { SettingOutlined } from '@ant-design/icons'
+import { Layout, Menu } from 'antd'
+import { useNavigate, useLocation } from 'react-router-dom'
 
-const { Sider } = Layout;
+const { Sider } = Layout
 
 export const Sidebar: React.FC = () => {
-  const navigate = useNavigate();
-  const location = useLocation();
+  const navigate = useNavigate()
+  const location = useLocation()
 
   return (
     <Sider width={240} theme="dark">
-      <div style={{ height: 64, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 20, fontWeight: 'bold' }}>
+      <div
+        style={{
+          height: 64,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: '#fff',
+          fontSize: 20,
+          fontWeight: 'bold',
+        }}
+      >
         MAI
       </div>
       <Menu
@@ -27,5 +37,5 @@ export const Sidebar: React.FC = () => {
         ]}
       />
     </Sider>
-  );
-};
+  )
+}
