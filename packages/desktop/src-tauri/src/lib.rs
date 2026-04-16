@@ -13,29 +13,7 @@ pub fn run() {
       // 在生产环境启动 API sidecar
       #[cfg(not(debug_assertions))]
       {
-        use std::process::{Command, Stdio};
-        
-        let exe_path = std::env::current_exe().expect("Failed to get current executable path");
-        let resource_base = exe_path.parent()
-          .and_then(|p| p.parent())
-          .expect("Failed to resolve Resources directory")
-          .join("Resources");
-        let startup_script = resource_base.join("binaries/mai-api-macos/start.sh");
-        
-        if startup_script.exists() {
-          Command::new(&startup_script)
-            .current_dir(startup_script.parent().expect("Failed to get script parent dir"))
-            .env("APP_DATA_DIR", &app_data_dir)
-            .env("NODE_ENV", "production")
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .expect("Failed to start API sidecar");
-          
-          log::info!("API sidecar started from: {:?}", startup_script);
-        } else {
-          log::error!("Startup script not found: {:?}", startup_script);
-        }
+        start_api_sidecar(&app_data_dir);
       }
       
       Ok(())
@@ -88,5 +66,66 @@ fn get_app_data_dir() -> String {
       .join(".mai")
       .to_string_lossy()
       .into_owned()
+  }
+}
+
+/// 获取 sidecar 启动脚本的路径（根据平台自动选择）
+#[cfg(not(debug_assertions))]
+fn get_sidecar_script_path() -> std::path::PathBuf {
+  let exe_path = std::env::current_exe().expect("Failed to get current executable path");
+
+  #[cfg(target_os = "macos")]
+  {
+    exe_path.parent()
+      .and_then(|p| p.parent())
+      .expect("Failed to resolve Resources directory")
+      .join("Resources/binaries/mai-api-macos/start.sh")
+  }
+
+  #[cfg(target_os = "windows")]
+  {
+    exe_path.parent()
+      .expect("Failed to resolve exe directory")
+      .join("binaries/mai-api-windows/start.bat")
+  }
+
+  #[cfg(target_os = "linux")]
+  {
+    exe_path.parent()
+      .expect("Failed to resolve exe directory")
+      .join("binaries/mai-api-linux/start.sh")
+  }
+}
+
+/// 启动 API sidecar 子进程
+#[cfg(not(debug_assertions))]
+fn start_api_sidecar(app_data_dir: &str) {
+  use std::process::{Command, Stdio};
+
+  let script = get_sidecar_script_path();
+  if !script.exists() {
+    log::error!("Startup script not found: {:?}", script);
+    return;
+  }
+
+  let work_dir = script.parent().expect("Failed to get script parent dir");
+  let mut cmd = Command::new(&script);
+  cmd.current_dir(work_dir)
+    .env("APP_DATA_DIR", app_data_dir)
+    .env("NODE_ENV", "production")
+    .stdout(Stdio::null())
+    .stderr(Stdio::null());
+
+  // Windows 上隐藏 cmd.exe 控制台窗口
+  #[cfg(target_os = "windows")]
+  {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    cmd.creation_flags(CREATE_NO_WINDOW);
+  }
+
+  match cmd.spawn() {
+    Ok(_) => log::info!("API sidecar started from: {:?}", script),
+    Err(e) => log::error!("Failed to start API sidecar: {}", e),
   }
 }
