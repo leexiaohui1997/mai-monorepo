@@ -1,2 +1,4 @@
 @import 'tailwindcss';
+@plugin "@tailwindcss/typography";
 @import 'antd/dist/reset.css';
+@import './styles/markdown.css';

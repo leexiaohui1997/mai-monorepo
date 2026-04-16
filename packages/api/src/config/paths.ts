@@ -40,3 +40,15 @@ export function ensureDataDir(): void {
 export function getProvidersFilePath(): string {
   return path.join(getDataDir(), 'providers.jsonl')
 }
+
+/**
+ * 获取会话数据目录的完整路径
+ * 目录不存在时自动创建
+ */
+export function getConversationsDir(): string {
+  const dir = path.join(getDataDir(), 'conversations')
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true })
+  }
+  return dir
+}

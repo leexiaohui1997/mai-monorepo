@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 
 import { MainLayout } from './components/layout/MainLayout'
+import { ChatPage } from './pages/Chat'
 import { SettingsPage } from './pages/Settings'
 import { SetupPage } from './pages/Setup'
 import { checkBun } from './services/envService'
@@ -14,7 +15,7 @@ function EnvGuard() {
 
   useEffect(() => {
     checkBun().then((result) => {
-      setTarget(result.installed ? '/settings' : '/setup')
+      setTarget(result.installed ? '/chat' : '/setup')
     })
   }, [])
 
@@ -37,6 +38,14 @@ export default function App() {
         <Routes>
           <Route path="/" element={<EnvGuard />} />
           <Route path="/setup" element={<SetupPage />} />
+          <Route
+            path="/chat"
+            element={
+              <MainLayout>
+                <ChatPage />
+              </MainLayout>
+            }
+          />
           <Route
             path="/settings"
             element={

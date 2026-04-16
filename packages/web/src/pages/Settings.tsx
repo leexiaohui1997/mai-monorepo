@@ -272,7 +272,7 @@ export const SettingsPage: React.FC = () => {
   }
 
   return (
-    <div>
+    <div style={{ padding: 24, background: '#f5f5f5', minHeight: '100%' }}>
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
         <h2 style={{ margin: 0 }}>供应商配置</h2>
         <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>

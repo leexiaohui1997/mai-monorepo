@@ -72,6 +72,17 @@ export class ProviderManager {
     return providers.find((p) => p.isDefault) || null
   }
 
+  /** 遍历所有供应商，找到默认模型及其所属供应商 */
+  async getDefaultModel(): Promise<{ provider: ProviderConfig; model: ModelConfig } | null> {
+    const providers = await this.storage.readAll()
+    for (const provider of providers) {
+      if (!provider.enabled) continue
+      const model = provider.models.find((m) => m.isDefault)
+      if (model) return { provider, model }
+    }
+    return null
+  }
+
   async setDefaultProvider(id: string): Promise<ProviderConfig | null> {
     logger.info({ id }, '正在设置默认供应商')
     const result = await this.storage.setDefault(id)

@@ -1,4 +1,4 @@
-import { SettingOutlined } from '@ant-design/icons'
+import { MessageOutlined, SettingOutlined } from '@ant-design/icons'
 import { Layout, Menu } from 'antd'
 import { useNavigate, useLocation } from 'react-router-dom'
 
@@ -28,6 +28,12 @@ export const Sidebar: React.FC = () => {
         mode="inline"
         selectedKeys={[location.pathname]}
         items={[
+          {
+            key: '/chat',
+            icon: <MessageOutlined />,
+            label: '聊天',
+            onClick: () => navigate('/chat'),
+          },
           {
             key: '/settings',
             icon: <SettingOutlined />,

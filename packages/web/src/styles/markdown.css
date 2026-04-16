@@ -1,0 +1,36 @@
+/**
+ * Markdown 渲染样式微调
+ * 配合 @tailwindcss/typography 的 prose 类使用
+ * 用法：<div class="prose md-prose">...</div>
+ */
+
+/* 每个块层（含根层与子层）的最后一个子元素去除底部间距 */
+.md-prose > *:last-child,
+.md-prose li > *:last-child,
+.md-prose blockquote > *:last-child,
+.md-prose details > *:last-child {
+  margin-bottom: 0;
+}
+
+/* 列表项增加间距 */
+.md-prose li {
+  margin-bottom: 4px;
+}
+
+/* 行内代码样式微调 */
+.md-prose :not(pre) > code {
+  padding: 2px 5px;
+  border-radius: 3px;
+  font-size: 0.875em;
+}
+
+/* 代码块圆角 */
+.md-prose pre {
+  border-radius: 6px;
+}
+
+/* 代码块内 div（SyntaxHighlighter 生成）去除多余间距 */
+.md-prose pre > div {
+  margin: 0 !important;
+  padding: 0 !important;
+}
