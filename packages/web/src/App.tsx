@@ -5,6 +5,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 
 import { MainLayout } from './components/layout/MainLayout'
 import { ChatPage } from './pages/Chat'
+import { SearchSettingsPage } from './pages/SearchSettings'
 import { SettingsPage } from './pages/Settings'
 import { SetupPage } from './pages/Setup'
 import { checkBun } from './services/envService'
@@ -51,6 +52,14 @@ export default function App() {
             element={
               <MainLayout>
                 <SettingsPage />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/search-settings"
+            element={
+              <MainLayout>
+                <SearchSettingsPage />
               </MainLayout>
             }
           />

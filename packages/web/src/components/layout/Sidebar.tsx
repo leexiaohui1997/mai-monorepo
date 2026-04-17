@@ -1,4 +1,4 @@
-import { MessageOutlined, SettingOutlined } from '@ant-design/icons'
+import { MessageOutlined, SettingOutlined, SearchOutlined } from '@ant-design/icons'
 import { Layout, Menu } from 'antd'
 import { useNavigate, useLocation } from 'react-router-dom'
 
@@ -39,6 +39,12 @@ export const Sidebar: React.FC = () => {
             icon: <SettingOutlined />,
             label: '供应商管理',
             onClick: () => navigate('/settings'),
+          },
+          {
+            key: '/search-settings',
+            icon: <SearchOutlined />,
+            label: '搜索服务',
+            onClick: () => navigate('/search-settings'),
           },
         ]}
       />

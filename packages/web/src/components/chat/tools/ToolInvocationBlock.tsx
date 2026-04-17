@@ -9,6 +9,7 @@ import type { ToolInvocation } from 'ai'
 /** 工具显示名称映射 */
 const TOOL_LABELS: Record<string, string> = {
   readFile: '读取文件',
+  webSearch: '联网搜索',
 }
 
 /** 获取工具显示名称 */

@@ -7,6 +7,7 @@ import { requestLogger } from './middleware/requestLogger'
 import chatRoutes from './routes/chat'
 import conversationRoutes from './routes/conversations'
 import providerRoutes from './routes/providers'
+import searchProviderRoutes from './routes/searchProviders'
 import logger from './utils/logger'
 
 dotenv.config()
@@ -22,6 +23,7 @@ app.use(requestLogger)
 
 // Routes
 app.use('/api/providers', providerRoutes)
+app.use('/api/search-providers', searchProviderRoutes)
 app.use('/api/conversations', conversationRoutes)
 app.use('/api/chat', chatRoutes)
 

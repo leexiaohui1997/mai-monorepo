@@ -1,4 +1,5 @@
 import { ReadFileRenderer } from './ReadFileRenderer'
+import { WebSearchRenderer } from './WebSearchRenderer'
 
 import type { ComponentType } from 'react'
 
@@ -23,4 +24,5 @@ export interface ToolRendererProps {
  */
 export const toolRenderers: Record<string, ComponentType<ToolRendererProps>> = {
   readFile: ReadFileRenderer,
+  webSearch: WebSearchRenderer,
 }

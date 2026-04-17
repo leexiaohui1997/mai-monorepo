@@ -1,4 +1,5 @@
 import { readFileTool } from './readFile'
+import { webSearchTool } from './webSearch'
 
 import type { CoreTool } from 'ai'
 
@@ -13,4 +14,5 @@ import type { CoreTool } from 'ai'
  */
 export const toolRegistry: Record<string, CoreTool> = {
   readFile: readFileTool,
+  webSearch: webSearchTool,
 }
