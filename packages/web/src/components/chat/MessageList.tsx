@@ -5,18 +5,19 @@ import remarkGfm from 'remark-gfm'
 
 import { markdownComponents } from './markdown/registry'
 import { ThinkingBlock } from './ThinkingBlock'
+import { ToolInvocationBlock } from './tools/ToolInvocationBlock'
 
-import type { Message } from 'ai'
+import type { UIMessage } from 'ai'
 
 interface Props {
-  messages: Message[]
+  messages: UIMessage[]
   isLoading: boolean
   hasMore: boolean
   onLoadMore: () => void
 }
 
 /** 系统消息气泡（居中、特殊样式） */
-function SystemBubble({ message }: { message: Message }) {
+function SystemBubble({ message }: { message: UIMessage }) {
   return (
     <div className="flex justify-center mb-4">
       <div className="max-w-[80%] rounded-lg px-4 py-2 bg-amber-50 border border-amber-200 text-amber-800 text-sm text-center">
@@ -28,15 +29,52 @@ function SystemBubble({ message }: { message: Message }) {
   )
 }
 
+/** 渲染 assistant 消息的 parts（按时间顺序交错展示） */
+function AssistantParts({ message, isStreaming }: { message: UIMessage; isStreaming?: boolean }) {
+  const { parts } = message
+
+  // 判断是否有文本内容（用于控制 ThinkingBlock 的流式状态）
+  const hasTextPart = parts.some((p) => p.type === 'text' && p.text.trim())
+
+  return (
+    <>
+      {parts.map((part, index) => {
+        const key = `${message.id}-part-${index}`
+
+        if (part.type === 'reasoning') {
+          // 最后一个 reasoning part 且无文本内容时视为流式中
+          const isLastReasoning = !parts.slice(index + 1).some((p) => p.type === 'reasoning')
+          const streaming = isStreaming && isLastReasoning && !hasTextPart
+          return <ThinkingBlock key={key} reasoning={part.reasoning} isStreaming={streaming} />
+        }
+
+        if (part.type === 'tool-invocation') {
+          return <ToolInvocationBlock key={key} invocation={part.toolInvocation} />
+        }
+
+        if (part.type === 'text' && part.text.trim()) {
+          return (
+            <div key={key} className="prose prose-sm max-w-none md-prose">
+              <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                {part.text}
+              </Markdown>
+            </div>
+          )
+        }
+
+        // step-start、source、file 等暂不渲染
+        return null
+      })}
+    </>
+  )
+}
+
 /** 单条消息气泡 */
-function MessageBubble({ message, isStreaming }: { message: Message; isStreaming?: boolean }) {
-  const reasoning = message.reasoning
+function MessageBubble({ message, isStreaming }: { message: UIMessage; isStreaming?: boolean }) {
+  const hasParts = message.parts?.length > 0
   const hasContent = !!message.content?.trim()
-  const hasReasoning = !!reasoning
 
-  // 跳过既无内容也无思考的消息
-  if (!hasContent && !hasReasoning) return null
-
+  if (!hasParts && !hasContent) return null
   if (message.role === 'system') return <SystemBubble message={message} />
 
   const isUser = message.role === 'user'
@@ -51,16 +89,7 @@ function MessageBubble({ message, isStreaming }: { message: Message; isStreaming
         {isUser ? (
           <span className="whitespace-pre-wrap leading-normal">{message.content}</span>
         ) : (
-          <>
-            {hasReasoning && (
-              <ThinkingBlock reasoning={reasoning} isStreaming={isStreaming && !hasContent} />
-            )}
-            <div className="prose prose-sm max-w-none md-prose">
-              <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                {message.content}
-              </Markdown>
-            </div>
-          </>
+          <AssistantParts message={message} isStreaming={isStreaming} />
         )}
       </div>
     </div>

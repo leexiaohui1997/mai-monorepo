@@ -1,3 +1,18 @@
+/** 工具调用信息 */
+export interface ToolInvocation {
+  toolCallId: string
+  toolName: string
+  args: Record<string, unknown>
+  state: 'call' | 'result'
+  result?: unknown
+}
+
+/** 消息 parts — 按时间顺序记录消息的各个组成部分 */
+export type MessagePart =
+  | { type: 'text'; text: string }
+  | { type: 'reasoning'; reasoning: string }
+  | { type: 'tool-invocation'; toolInvocation: ToolInvocation }
+
 /** 聊天消息 */
 export interface ChatMessage {
   id: string
@@ -5,6 +20,10 @@ export interface ChatMessage {
   content: string
   /** AI 思考过程（仅 assistant 消息可能存在） */
   reasoning?: string
+  /** 工具调用信息（仅 assistant 消息可能存在） */
+  toolInvocations?: ToolInvocation[]
+  /** 按时间顺序排列的消息组成部分（优先使用，fallback 到 reasoning + toolInvocations + content） */
+  parts?: MessagePart[]
   createdAt: string
 }
 

@@ -6,7 +6,7 @@ import logger from '../utils/logger'
 
 import { SHARD_MAX_LINES, SHARD_MAX_BYTES } from './types'
 
-import type { ChatMessage, ConversationMeta, PaginatedMessages } from './types'
+import type { ChatMessage, ConversationMeta, MessagePart, PaginatedMessages } from './types'
 
 // ─── 辅助函数 ───
 
@@ -36,13 +36,32 @@ function writeMeta(id: string, meta: ConversationMeta): void {
   fs.writeFileSync(path.join(dir, 'meta.json'), JSON.stringify(meta, null, 2), 'utf-8')
 }
 
+/** 为缺少 parts 的旧 assistant 消息补建 */
+function ensureParts(msg: ChatMessage): ChatMessage {
+  if (msg.parts || msg.role !== 'assistant') return msg
+
+  const parts: MessagePart[] = []
+  if (msg.reasoning) {
+    parts.push({ type: 'reasoning', reasoning: msg.reasoning })
+  }
+  if (msg.toolInvocations) {
+    for (const inv of msg.toolInvocations) {
+      parts.push({ type: 'tool-invocation', toolInvocation: inv })
+    }
+  }
+  if (msg.content?.trim()) {
+    parts.push({ type: 'text', text: msg.content })
+  }
+  return parts.length > 0 ? { ...msg, parts } : msg
+}
+
 /** 读取分片文件的所有消息 */
 function readShard(id: string, shard: string): ChatMessage[] {
   const filePath = path.join(convDir(id), shard)
   if (!fs.existsSync(filePath)) return []
   const text = fs.readFileSync(filePath, 'utf-8').trim()
   if (!text) return []
-  return text.split('\n').map((line) => JSON.parse(line))
+  return text.split('\n').map((line) => ensureParts(JSON.parse(line)))
 }
 
 /** 获取分片文件的行数和字节数 */

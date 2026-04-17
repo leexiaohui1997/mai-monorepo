@@ -7,10 +7,29 @@ import { chatService } from '../services/chatService'
 
 import type { ChatSessionHandle } from '../components/chat/ChatSession'
 import type { ConversationMeta } from '../services/chatService'
-import type { Message } from 'ai'
+import type { Message, ToolInvocation } from 'ai'
 
 const TEMP_ID_PREFIX = 'temp-'
 const isTempId = (id: string | null) => id?.startsWith(TEMP_ID_PREFIX)
+
+/** 将后端 API 消息转为 AI SDK Message 格式 */
+function toSdkMessage(m: {
+  id: string
+  role: string
+  content: string
+  reasoning?: string
+  toolInvocations?: unknown[]
+  parts?: unknown[]
+}): Message {
+  return {
+    id: m.id,
+    role: m.role as Message['role'],
+    content: m.content,
+    reasoning: m.reasoning,
+    toolInvocations: m.toolInvocations as ToolInvocation[] | undefined,
+    parts: m.parts as Message['parts'],
+  }
+}
 
 /** 活跃会话实例的初始化数据 */
 interface SessionEntry {
@@ -113,12 +132,7 @@ export const ChatPage: React.FC = () => {
       // 首次进入：拉取历史消息后加入活跃池
       try {
         const res = await chatService.getMessages(id)
-        const msgs: Message[] = (res.data?.messages ?? []).map((m) => ({
-          id: m.id,
-          role: m.role as Message['role'],
-          content: m.content,
-          reasoning: m.reasoning,
-        }))
+        const msgs = (res.data?.messages ?? []).map(toSdkMessage)
         activateSession(id, msgs, res.data?.hasMore ?? false)
         setCurrentConvId(id)
       } catch {
@@ -138,12 +152,7 @@ export const ChatPage: React.FC = () => {
         if (list.length > 0) {
           const first = list[0]
           const msgRes = await chatService.getMessages(first.id)
-          const msgs: Message[] = (msgRes.data?.messages ?? []).map((m) => ({
-            id: m.id,
-            role: m.role as Message['role'],
-            content: m.content,
-            reasoning: m.reasoning,
-          }))
+          const msgs = (msgRes.data?.messages ?? []).map(toSdkMessage)
           activateSession(first.id, msgs, msgRes.data?.hasMore ?? false)
           setCurrentConvId(first.id)
         }

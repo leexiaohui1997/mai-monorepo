@@ -5,9 +5,10 @@ import { Router } from 'express'
 
 import { createConversation, appendMessage, loadAllMessages } from '../conversations/storage'
 import { ProviderManager } from '../providers/manager'
+import { toolRegistry } from '../tools/registry'
 import logger from '../utils/logger'
 
-import type { ChatMessage } from '../conversations/types'
+import type { ChatMessage, MessagePart } from '../conversations/types'
 import type { ProviderConfig } from '../providers/types'
 
 const router = Router()
@@ -77,6 +78,50 @@ async function resolveModel(
   return { provider: result.provider, modelName: result.model.name }
 }
 
+interface StepLike {
+  reasoning: string | undefined
+  text: string
+  toolCalls: Array<{ toolCallId: string; toolName: string; args: unknown }>
+  toolResults: Array<{ toolCallId: string; result: unknown }>
+}
+
+interface CollectedInvocation {
+  toolCallId: string
+  toolName: string
+  args: Record<string, unknown>
+  state: 'result'
+  result?: unknown
+}
+
+/** 从 AI SDK steps 按时间顺序构建 parts 和 toolInvocations */
+function buildPartsFromSteps(steps: StepLike[]) {
+  const parts: MessagePart[] = []
+  const toolInvocations: CollectedInvocation[] = []
+
+  for (const step of steps) {
+    if (step.reasoning) {
+      parts.push({ type: 'reasoning', reasoning: step.reasoning })
+    }
+    for (const call of step.toolCalls) {
+      const matched = step.toolResults?.find((r) => r.toolCallId === call.toolCallId)
+      const inv: CollectedInvocation = {
+        toolCallId: call.toolCallId,
+        toolName: call.toolName,
+        args: call.args as Record<string, unknown>,
+        state: 'result',
+        result: matched?.result,
+      }
+      toolInvocations.push(inv)
+      parts.push({ type: 'tool-invocation', toolInvocation: inv })
+    }
+    if (step.text?.trim()) {
+      parts.push({ type: 'text', text: step.text })
+    }
+  }
+
+  return { parts, toolInvocations }
+}
+
 // POST /api/chat — 流式聊天
 router.post('/', async (req, res) => {
   try {
@@ -130,9 +175,23 @@ router.post('/', async (req, res) => {
     const result = streamText({
       model,
       messages: aiMessages,
-      onFinish: async ({ text, reasoning }) => {
+      tools: toolRegistry,
+      maxSteps: 5,
+      onFinish: async ({ text, reasoning, steps }) => {
         // 打印原始返回内容，用于调试
         logger.info({ reasoning: reasoning || '(空)', text: text.slice(0, 200) }, 'AI 原始返回内容')
+
+        // 从所有步骤中按时间顺序构建 parts 和 toolInvocations
+        const { parts, toolInvocations } = buildPartsFromSteps(steps)
+
+        // 打印工具调用日志
+        for (const inv of toolInvocations) {
+          logger.info(
+            { toolName: inv.toolName, args: inv.args, result: inv.result },
+            '工具调用: %s',
+            inv.toolName,
+          )
+        }
 
         // AI 回复完成后持久化
         const assistantMsg: ChatMessage = {
@@ -140,6 +199,8 @@ router.post('/', async (req, res) => {
           role: 'assistant',
           content: text,
           reasoning: reasoning || undefined,
+          toolInvocations: toolInvocations.length > 0 ? toolInvocations : undefined,
+          parts: parts.length > 0 ? parts : undefined,
           createdAt: new Date().toISOString(),
         }
         appendMessage(capturedConvId, assistantMsg)

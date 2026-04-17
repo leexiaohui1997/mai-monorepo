@@ -7,7 +7,7 @@ import { chatService } from '../../services/chatService'
 import { ChatInput } from './ChatInput'
 import { MessageList } from './MessageList'
 
-import type { Message } from 'ai'
+import type { Message, ToolInvocation } from 'ai'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api'
 const TEMP_ID_PREFIX = 'temp-'
@@ -108,6 +108,8 @@ export const ChatSession = forwardRef<ChatSessionHandle, Props>(
           role: m.role as Message['role'],
           content: m.content,
           reasoning: m.reasoning,
+          toolInvocations: m.toolInvocations as ToolInvocation[] | undefined,
+          parts: m.parts as Message['parts'],
         }))
         setMessages([...older, ...messages])
         setHasMoreState(res.data?.hasMore ?? false)
