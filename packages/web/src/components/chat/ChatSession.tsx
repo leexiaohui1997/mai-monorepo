@@ -77,11 +77,20 @@ export const ChatSession = forwardRef<ChatSessionHandle, Props>(
 
     // 发送消息
     const handleSend = useCallback(
-      (content: string) => {
+      (content: string, model: { providerId: string; modelId: string }) => {
         if (isTempId(convId)) {
           onFirstMessage(convId, content)
         }
-        append({ role: 'user', content })
+        append(
+          { role: 'user', content },
+          {
+            body: {
+              conversationId: isTempId(convId) ? null : convId,
+              providerId: model.providerId,
+              modelId: model.modelId,
+            },
+          },
+        )
       },
       [append, onFirstMessage, convId],
     )

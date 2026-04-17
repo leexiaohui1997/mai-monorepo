@@ -26,20 +26,41 @@ function createModel(provider: ProviderConfig, modelName: string) {
   return openai(modelName)
 }
 
+/** 解析前端指定的模型，若未指定则使用默认模型 */
+async function resolveModel(
+  providerId?: string,
+  modelId?: string,
+): Promise<{ provider: ProviderConfig; modelName: string } | null> {
+  // 前端指定了模型
+  if (providerId && modelId) {
+    const provider = (await providerManager.listProviders()).find((p) => p.id === providerId)
+    const model = provider?.models?.find((m) => m.id === modelId)
+    if (provider && model) return { provider, modelName: model.name }
+    logger.warn({ providerId, modelId }, '前端指定的模型不存在，回退到默认模型')
+  }
+
+  // 使用默认模型
+  const result = await providerManager.getDefaultModel()
+  if (!result) return null
+  return { provider: result.provider, modelName: result.model.name }
+}
+
 // POST /api/chat — 流式聊天
 router.post('/', async (req, res) => {
   try {
-    const { conversationId, messages } = req.body as {
+    const { conversationId, messages, providerId, modelId } = req.body as {
       conversationId?: string
       messages: Array<{ role: string; content: string }>
+      providerId?: string
+      modelId?: string
     }
 
-    // 获取默认模型及其所属供应商
-    const defaultResult = await providerManager.getDefaultModel()
-    if (!defaultResult) {
+    // 解析模型（前端指定 > 默认模型）
+    const resolved = await resolveModel(providerId, modelId)
+    if (!resolved) {
       return res.status(400).json({ success: false, error: '请先配置供应商并设置默认模型' })
     }
-    const { provider, model: defaultModel } = defaultResult
+    const { provider, modelName } = resolved
 
     // 取最新一条用户消息
     const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user')
@@ -71,7 +92,7 @@ router.post('/', async (req, res) => {
     ]
 
     // 流式调用 AI
-    const model = createModel(provider, defaultModel.name)
+    const model = createModel(provider, modelName)
     const capturedConvId = convId
 
     const result = streamText({

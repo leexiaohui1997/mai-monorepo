@@ -1,5 +1,6 @@
 import api from './api'
 
+import type { ModelOption } from './types'
 import type {
   ProviderConfig,
   ModelConfig,
@@ -11,6 +12,8 @@ import type {
 
 export const providerService = {
   list: () => api.get<{ data: ProviderConfig[] }>('/providers').then((res) => res.data),
+  /** 获取所有启用供应商的模型列表（扁平化、按名称排序） */
+  listModels: () => api.get<{ data: ModelOption[] }>('/providers/models').then((res) => res.data),
   get: (id: string) =>
     api.get<{ data: ProviderConfig }>(`/providers/${id}`).then((res) => res.data),
   create: (data: CreateProviderInput) =>

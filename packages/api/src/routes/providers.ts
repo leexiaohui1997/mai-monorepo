@@ -20,6 +20,36 @@ router.get('/', async (req, res) => {
   }
 })
 
+// GET /api/providers/models - 获取所有启用供应商的模型列表（扁平化、按名称排序）
+router.get('/models', async (req, res) => {
+  try {
+    const providers = await manager.listProviders()
+    const defaultResult = await manager.getDefaultModel()
+    const defaultModelId = defaultResult?.model?.id
+
+    const models = providers
+      .filter((p) => p.enabled && p.models?.length)
+      .flatMap((p) =>
+        p.models.map((m) => ({
+          key: `${p.id}:${m.id}`,
+          providerId: p.id,
+          modelId: m.id,
+          modelName: m.name,
+          displayName: m.displayName || m.name,
+          providerName: p.name,
+          isDefault: m.id === defaultModelId,
+        })),
+      )
+      .sort((a, b) => a.modelName.localeCompare(b.modelName))
+
+    res.json({ success: true, data: models })
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error)
+    logger.error({ error: msg }, '获取模型列表失败')
+    res.status(500).json({ success: false, error: msg })
+  }
+})
+
 // GET /api/providers/:id - 详情查询
 router.get('/:id', async (req, res) => {
   try {
