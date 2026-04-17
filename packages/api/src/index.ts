@@ -8,6 +8,7 @@ import chatRoutes from './routes/chat'
 import conversationRoutes from './routes/conversations'
 import providerRoutes from './routes/providers'
 import searchProviderRoutes from './routes/searchProviders'
+import toolRoutes from './routes/tools'
 import logger from './utils/logger'
 
 dotenv.config()
@@ -25,6 +26,7 @@ app.use(requestLogger)
 app.use('/api/providers', providerRoutes)
 app.use('/api/search-providers', searchProviderRoutes)
 app.use('/api/conversations', conversationRoutes)
+app.use('/api/tools', toolRoutes)
 app.use('/api/chat', chatRoutes)
 
 // Global error handler

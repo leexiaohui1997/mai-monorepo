@@ -59,11 +59,13 @@ export const ChatSession = forwardRef<ChatSessionHandle, Props>(
       setConvId(conversationId)
     }, [conversationId])
 
-    const { messages, isLoading, append, setMessages, stop } = useChat({
+    const { messages, isLoading, append, setMessages, stop, addToolResult } = useChat({
       api: `${API_BASE}/chat`,
       id: stableChatId,
       initialMessages,
       body: { conversationId: isTempId(convId) ? null : convId },
+      // 拦截所有工具调用，不返回结果使 state 停留在 'call'
+      onToolCall: () => undefined,
       onError: (err) => antMessage.error(err.message || '聊天请求失败'),
       onResponse: (response) => {
         const newConvId = response.headers.get('X-Conversation-Id')
@@ -125,6 +127,7 @@ export const ChatSession = forwardRef<ChatSessionHandle, Props>(
           isLoading={isLoading}
           hasMore={hasMoreState}
           onLoadMore={handleLoadMore}
+          addToolResult={addToolResult}
         />
         {isVisible && <ChatInput onSend={handleSend} isLoading={isLoading} />}
       </div>

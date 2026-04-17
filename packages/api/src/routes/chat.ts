@@ -1,15 +1,16 @@
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
-import { streamText } from 'ai'
+import { streamText, convertToCoreMessages } from 'ai'
 import { Router } from 'express'
 
-import { createConversation, appendMessage, loadAllMessages } from '../conversations/storage'
+import { createConversation, appendMessage } from '../conversations/storage'
 import { ProviderManager } from '../providers/manager'
-import { toolRegistry } from '../tools/registry'
+import { toolRegistry, getToolMeta } from '../tools/registry'
 import logger from '../utils/logger'
 
 import type { ChatMessage, MessagePart } from '../conversations/types'
 import type { ProviderConfig } from '../providers/types'
+import type { CoreTool } from 'ai'
 
 const router = Router()
 const providerManager = new ProviderManager()
@@ -78,6 +79,22 @@ async function resolveModel(
   return { provider: result.provider, modelName: result.model.name }
 }
 
+/** 构建传给 streamText 的工具集：需确认的工具剥离 execute */
+function buildStreamTools(): Record<string, CoreTool> {
+  const tools: Record<string, CoreTool> = {}
+  for (const [name, def] of Object.entries(toolRegistry)) {
+    const meta = getToolMeta(name)
+    if (meta.confirmation === 'always') {
+      // 仅保留 description + parameters，不提供 execute
+      const { execute: _exec, ...rest } = def as CoreTool & { execute?: unknown }
+      tools[name] = rest as CoreTool
+    } else {
+      tools[name] = def
+    }
+  }
+  return tools
+}
+
 interface StepLike {
   reasoning: string | undefined
   text: string
@@ -109,7 +126,7 @@ function buildPartsFromSteps(steps: StepLike[]) {
         toolName: call.toolName,
         args: call.args as Record<string, unknown>,
         state: 'result',
-        result: matched?.result,
+        result: matched ? matched.result : { expired: true, reason: '工具调用未完成（会话中断）' },
       }
       toolInvocations.push(inv)
       parts.push({ type: 'tool-invocation', toolInvocation: inv })
@@ -122,89 +139,160 @@ function buildPartsFromSteps(steps: StepLike[]) {
   return { parts, toolInvocations }
 }
 
-// POST /api/chat — 流式聊天
-router.post('/', async (req, res) => {
-  try {
-    const { conversationId, messages, providerId, modelId } = req.body as {
-      conversationId?: string
-      messages: Array<{ role: string; content: string }>
-      providerId?: string
-      modelId?: string
-    }
+/** 检测 steps 中是否存在未完成的工具调用（有 call 无 result） */
+function checkPendingToolCalls(steps: StepLike[]): boolean {
+  return steps.some((step) =>
+    step.toolCalls.some((call) => !step.toolResults?.find((r) => r.toolCallId === call.toolCallId)),
+  )
+}
 
-    // 解析模型（前端指定 > 默认模型）
-    const resolved = await resolveModel(providerId, modelId)
-    if (!resolved) {
-      return res.status(400).json({ success: false, error: '请先配置供应商并设置默认模型' })
-    }
-    const { provider, modelName } = resolved
+/** 将前一次的 parts / toolInvocations 合并到当前结果前面，并拼接 reasoning */
+function mergePreviousParts(
+  parts: MessagePart[],
+  toolInvocations: CollectedInvocation[],
+  previousParts: MessagePart[],
+  previousToolInvocations: CollectedInvocation[],
+  currentReasoning: string | undefined,
+): string | undefined {
+  if (previousParts.length > 0) {
+    parts.unshift(...previousParts)
+    toolInvocations.unshift(...previousToolInvocations)
+  }
+  const prevReasonings = previousParts
+    .filter(
+      (p): p is MessagePart & { reasoning: string } => p.type === 'reasoning' && !!p.reasoning,
+    )
+    .map((p) => p.reasoning)
+  return [...prevReasonings, currentReasoning].filter(Boolean).join('\n\n') || undefined
+}
 
-    // 取最新一条用户消息
-    const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user')
-    if (!lastUserMsg) {
-      return res.status(400).json({ success: false, error: '缺少用户消息' })
-    }
+/** 构建 assistant 消息并持久化 */
+function persistAssistantMsg(
+  convId: string,
+  text: string,
+  reasoning: string | undefined,
+  toolInvocations: CollectedInvocation[],
+  parts: MessagePart[],
+): void {
+  for (const inv of toolInvocations) {
+    logger.info(
+      { toolName: inv.toolName, args: inv.args, result: inv.result },
+      '工具调用: %s',
+      inv.toolName,
+    )
+  }
+  const assistantMsg: ChatMessage = {
+    id: crypto.randomUUID(),
+    role: 'assistant',
+    content: text,
+    reasoning,
+    toolInvocations: toolInvocations.length > 0 ? toolInvocations : undefined,
+    parts: parts.length > 0 ? parts : undefined,
+    createdAt: new Date().toISOString(),
+  }
+  appendMessage(convId, assistantMsg)
+  logger.info({ conversationId: convId }, 'AI 回复已存储')
+}
 
-    // 确定会话 ID（无则创建）
-    let convId = conversationId
-    if (!convId) {
-      const meta = createConversation(lastUserMsg.content)
-      convId = meta.id
-    }
+/** 解析请求参数，准备会话上下文 */
+async function prepareChatContext(req: { body: unknown }) {
+  const { conversationId, messages, providerId, modelId } = req.body as {
+    conversationId?: string
+    messages: Array<{ role: string; content: string; toolInvocations?: unknown[] }>
+    providerId?: string
+    modelId?: string
+  }
 
-    // 存储用户消息
-    const userMessage: ChatMessage = {
+  const resolved = await resolveModel(providerId, modelId)
+  if (!resolved) return null
+
+  const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user')
+  if (!lastUserMsg) return null
+
+  let convId = conversationId
+  if (!convId) {
+    const meta = createConversation(lastUserMsg.content)
+    convId = meta.id
+  }
+
+  const isToolResultResume = messages.some(
+    (m) => m.role === 'assistant' && m.toolInvocations?.length,
+  )
+
+  if (!isToolResultResume) {
+    appendMessage(convId, {
       id: crypto.randomUUID(),
       role: 'user',
       content: lastUserMsg.content,
       createdAt: new Date().toISOString(),
+    })
+  }
+
+  // 从前端 messages 中提取前一次 assistant 消息的完整 parts（含 reasoning + tool-invocation）
+  type FrontendMessage = (typeof messages)[number] & { parts?: MessagePart[] }
+  const previousParts: MessagePart[] = isToolResultResume
+    ? (messages as FrontendMessage[])
+        .filter((m) => m.role === 'assistant' && m.toolInvocations?.length)
+        .flatMap((m) => m.parts ?? [])
+    : []
+  const previousToolInvocations: CollectedInvocation[] = isToolResultResume
+    ? (messages
+        .filter((m) => m.role === 'assistant' && m.toolInvocations?.length)
+        .flatMap((m) => m.toolInvocations ?? []) as CollectedInvocation[])
+    : []
+
+  const coreMessages = convertToCoreMessages(
+    messages as Parameters<typeof convertToCoreMessages>[0],
+  )
+
+  return {
+    convId,
+    provider: resolved.provider,
+    modelName: resolved.modelName,
+    aiMessages: [{ role: 'system' as const, content: SYSTEM_PROMPT }, ...coreMessages],
+    previousParts,
+    previousToolInvocations,
+  }
+}
+
+// POST /api/chat — 流式聊天
+router.post('/', async (req, res) => {
+  try {
+    const ctx = await prepareChatContext(req)
+    if (!ctx) {
+      return res.status(400).json({ success: false, error: '请先配置供应商并设置默认模型' })
     }
-    appendMessage(convId, userMessage)
-
-    // 从存储加载全部历史（MVP：不做 token 截断）
-    const history = loadAllMessages(convId)
-    const aiMessages = [
-      { role: 'system' as const, content: SYSTEM_PROMPT },
-      ...history.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
-    ]
-
-    // 流式调用 AI
-    const model = createModel(provider, modelName)
+    const { convId, provider, modelName, aiMessages, previousParts, previousToolInvocations } = ctx
     const capturedConvId = convId
 
+    const model = createModel(provider, modelName)
     const result = streamText({
       model,
       messages: aiMessages,
-      tools: toolRegistry,
+      tools: buildStreamTools(),
       maxSteps: 5,
       onFinish: async ({ text, reasoning, steps }) => {
-        // 打印原始返回内容，用于调试
         logger.info({ reasoning: reasoning || '(空)', text: text.slice(0, 200) }, 'AI 原始返回内容')
 
-        // 从所有步骤中按时间顺序构建 parts 和 toolInvocations
-        const { parts, toolInvocations } = buildPartsFromSteps(steps)
-
-        // 打印工具调用日志
-        for (const inv of toolInvocations) {
+        const stepsTyped = steps as StepLike[]
+        if (checkPendingToolCalls(stepsTyped)) {
           logger.info(
-            { toolName: inv.toolName, args: inv.args, result: inv.result },
-            '工具调用: %s',
-            inv.toolName,
+            { conversationId: capturedConvId },
+            '存在待确认的工具调用，跳过存储（等待续传请求）',
           )
+          return
         }
 
-        // AI 回复完成后持久化
-        const assistantMsg: ChatMessage = {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          content: text,
-          reasoning: reasoning || undefined,
-          toolInvocations: toolInvocations.length > 0 ? toolInvocations : undefined,
-          parts: parts.length > 0 ? parts : undefined,
-          createdAt: new Date().toISOString(),
-        }
-        appendMessage(capturedConvId, assistantMsg)
-        logger.info({ conversationId: capturedConvId }, 'AI 回复已存储')
+        const { parts, toolInvocations } = buildPartsFromSteps(steps)
+        const fullReasoning = mergePreviousParts(
+          parts,
+          toolInvocations,
+          previousParts,
+          previousToolInvocations,
+          reasoning,
+        )
+
+        persistAssistantMsg(capturedConvId, text, fullReasoning, toolInvocations, parts)
       },
     })
 

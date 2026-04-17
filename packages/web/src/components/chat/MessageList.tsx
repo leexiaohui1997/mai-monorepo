@@ -11,11 +11,15 @@ import { ToolInvocationBlock } from './tools/ToolInvocationBlock'
 import type { SearchSource } from './citation/parseCitations'
 import type { UIMessage } from 'ai'
 
+/** addToolResult 的函数签名 */
+export type AddToolResultFn = (params: { toolCallId: string; result: unknown }) => void
+
 interface Props {
   messages: UIMessage[]
   isLoading: boolean
   hasMore: boolean
   onLoadMore: () => void
+  addToolResult: AddToolResultFn
 }
 
 /** 系统消息气泡（居中、特殊样式） */
@@ -50,7 +54,15 @@ function extractSearchSources(parts: UIMessage['parts']): SearchSource[] {
 }
 
 /** 渲染 assistant 消息的 parts（按时间顺序交错展示） */
-function AssistantParts({ message, isStreaming }: { message: UIMessage; isStreaming?: boolean }) {
+function AssistantParts({
+  message,
+  isStreaming,
+  addToolResult,
+}: {
+  message: UIMessage
+  isStreaming?: boolean
+  addToolResult: AddToolResultFn
+}) {
   const { parts } = message
 
   // 判断是否有文本内容（用于控制 ThinkingBlock 的流式状态）
@@ -72,7 +84,13 @@ function AssistantParts({ message, isStreaming }: { message: UIMessage; isStream
         }
 
         if (part.type === 'tool-invocation') {
-          return <ToolInvocationBlock key={key} invocation={part.toolInvocation} />
+          return (
+            <ToolInvocationBlock
+              key={key}
+              invocation={part.toolInvocation}
+              addToolResult={addToolResult}
+            />
+          )
         }
 
         if (part.type === 'text' && part.text.trim()) {
@@ -93,7 +111,15 @@ function AssistantParts({ message, isStreaming }: { message: UIMessage; isStream
 }
 
 /** 单条消息气泡 */
-function MessageBubble({ message, isStreaming }: { message: UIMessage; isStreaming?: boolean }) {
+function MessageBubble({
+  message,
+  isStreaming,
+  addToolResult,
+}: {
+  message: UIMessage
+  isStreaming?: boolean
+  addToolResult: AddToolResultFn
+}) {
   const hasParts = message.parts?.length > 0
   const hasContent = !!message.content?.trim()
 
@@ -112,7 +138,11 @@ function MessageBubble({ message, isStreaming }: { message: UIMessage; isStreami
         {isUser ? (
           <span className="whitespace-pre-wrap leading-normal">{message.content}</span>
         ) : (
-          <AssistantParts message={message} isStreaming={isStreaming} />
+          <AssistantParts
+            message={message}
+            isStreaming={isStreaming}
+            addToolResult={addToolResult}
+          />
         )}
       </div>
     </div>
@@ -120,7 +150,13 @@ function MessageBubble({ message, isStreaming }: { message: UIMessage; isStreami
 }
 
 /** 消息列表（含上滑加载更多） */
-export const MessageList: React.FC<Props> = ({ messages, isLoading, hasMore, onLoadMore }) => {
+export const MessageList: React.FC<Props> = ({
+  messages,
+  isLoading,
+  hasMore,
+  onLoadMore,
+  addToolResult,
+}) => {
   const bottomRef = useRef<HTMLDivElement>(null)
 
   // 自动滚动到底部
@@ -158,6 +194,7 @@ export const MessageList: React.FC<Props> = ({ messages, isLoading, hasMore, onL
           key={msg.id}
           message={msg}
           isStreaming={isLoading && idx === messages.length - 1}
+          addToolResult={addToolResult}
         />
       ))}
 
