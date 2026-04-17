@@ -6,6 +6,7 @@ import {
   LoadingOutlined,
   StarOutlined,
   StarFilled,
+  GlobalOutlined,
 } from '@ant-design/icons'
 import {
   Card,
@@ -44,6 +45,14 @@ const ModelList: React.FC<{ provider: ProviderConfig; onRefresh: () => void }> =
   const [testingModelId, setTestingModelId] = useState<string | null>(null)
   const [modelForm] = Form.useForm()
 
+  // 获取全局默认模型ID（需要从后端获取）
+  const [globalDefaultModelId, _setGlobalDefaultModelId] = useState<string | null>(null)
+
+  // TODO: 从后端获取全局默认模型ID
+  // useEffect(() => {
+  //   providerService.getGlobalDefaultModelId().then(_setGlobalDefaultModelId)
+  // }, [])
+
   const handleOpenAdd = () => {
     setEditingModel(null)
     modelForm.resetFields()
@@ -80,7 +89,7 @@ const ModelList: React.FC<{ provider: ProviderConfig; onRefresh: () => void }> =
   const handleSetDefault = async (modelId: string) => {
     await providerService.setDefaultModel(provider.id, modelId)
     onRefresh()
-    message.success('已设为默认模型')
+    message.success('已设为全局默认模型')
   }
 
   const handleTestModel = async (modelId: string) => {
@@ -125,9 +134,16 @@ const ModelList: React.FC<{ provider: ProviderConfig; onRefresh: () => void }> =
             render: (_: unknown, record: ModelConfig) => (
               <span>
                 {record.displayName || record.name}
-                {record.isDefault && (
+                {globalDefaultModelId === record.id && (
+                  <Tooltip title="全局默认模型">
+                    <Tag color="green" style={{ marginLeft: 4 }}>
+                      <GlobalOutlined /> 全局默认
+                    </Tag>
+                  </Tooltip>
+                )}
+                {record.isDefault && globalDefaultModelId !== record.id && (
                   <Tag color="blue" style={{ marginLeft: 4 }}>
-                    默认
+                    供应商默认
                   </Tag>
                 )}
               </span>
@@ -317,7 +333,11 @@ export const SettingsPage: React.FC = () => {
                 模型:{' '}
                 {p.models.length > 0
                   ? p.models.map((m) => (
-                      <Tag key={m.id} color={m.isDefault ? 'blue' : 'default'}>
+                      <Tag
+                        key={m.id}
+                        color={m.isDefault ? 'blue' : 'default'}
+                        style={{ marginRight: 8, marginBottom: 4 }}
+                      >
                         {m.displayName || m.name}
                       </Tag>
                     ))

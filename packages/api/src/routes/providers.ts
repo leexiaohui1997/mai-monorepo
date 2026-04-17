@@ -89,6 +89,7 @@ router.delete('/:id', async (req, res) => {
 })
 
 // POST /api/providers/:id/test - 测试连接（支持 modelId 查询参数）
+// 优先级：指定modelId > 全局默认模型 > 供应商默认模型 > 内置默认模型
 router.post('/:id/test', async (req, res) => {
   try {
     const modelId = req.body.modelId as string | undefined
@@ -169,6 +170,7 @@ router.delete('/:id/models/:modelId', async (req, res) => {
 })
 
 // POST /api/providers/:id/models/:modelId/set-default - 设置默认模型
+// 注意：设置新的默认模型将清除所有其他供应商的默认模型标记，确保全局只有一个默认模型
 router.post('/:id/models/:modelId/set-default', async (req, res) => {
   try {
     const model = await manager.setDefaultModel(req.params.id, req.params.modelId)
