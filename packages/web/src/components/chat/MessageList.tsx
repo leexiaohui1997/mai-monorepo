@@ -5,6 +5,8 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import remarkGfm from 'remark-gfm'
 
+import { ThinkingBlock } from './ThinkingBlock'
+
 import type { Message } from 'ai'
 
 interface Props {
@@ -37,9 +39,13 @@ function SystemBubble({ message }: { message: Message }) {
 }
 
 /** 单条消息气泡 */
-function MessageBubble({ message }: { message: Message }) {
-  // 跳过空内容的消息（流式响应初始状态）
-  if (!message.content?.trim()) return null
+function MessageBubble({ message, isStreaming }: { message: Message; isStreaming?: boolean }) {
+  const reasoning = message.reasoning
+  const hasContent = !!message.content?.trim()
+  const hasReasoning = !!reasoning
+
+  // 跳过既无内容也无思考的消息
+  if (!hasContent && !hasReasoning) return null
 
   if (message.role === 'system') return <SystemBubble message={message} />
 
@@ -55,27 +61,32 @@ function MessageBubble({ message }: { message: Message }) {
         {isUser ? (
           <span className="whitespace-pre-wrap leading-normal">{message.content}</span>
         ) : (
-          <div className="prose prose-sm max-w-none md-prose">
-            <Markdown
-              remarkPlugins={[remarkGfm]}
-              components={{
-                code({ className, children, ...props }) {
-                  const match = /language-(\w+)/.exec(className || '')
-                  const codeStr = String(children).replace(/\n$/, '')
-                  if (match) {
-                    return <CodeBlock language={match[1]}>{codeStr}</CodeBlock>
-                  }
-                  return (
-                    <code className={className} {...props}>
-                      {children}
-                    </code>
-                  )
-                },
-              }}
-            >
-              {message.content}
-            </Markdown>
-          </div>
+          <>
+            {hasReasoning && (
+              <ThinkingBlock reasoning={reasoning} isStreaming={isStreaming && !hasContent} />
+            )}
+            <div className="prose prose-sm max-w-none md-prose">
+              <Markdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  code({ className, children, ...props }) {
+                    const match = /language-(\w+)/.exec(className || '')
+                    const codeStr = String(children).replace(/\n$/, '')
+                    if (match) {
+                      return <CodeBlock language={match[1]}>{codeStr}</CodeBlock>
+                    }
+                    return (
+                      <code className={className} {...props}>
+                        {children}
+                      </code>
+                    )
+                  },
+                }}
+              >
+                {message.content}
+              </Markdown>
+            </div>
+          </>
         )}
       </div>
     </div>
@@ -116,8 +127,12 @@ export const MessageList: React.FC<Props> = ({ messages, isLoading, hasMore, onL
         </div>
       )}
 
-      {messages.map((msg) => (
-        <MessageBubble key={msg.id} message={msg} />
+      {messages.map((msg, idx) => (
+        <MessageBubble
+          key={msg.id}
+          message={msg}
+          isStreaming={isLoading && idx === messages.length - 1}
+        />
       ))}
 
       {/* 流式加载指示器 */}

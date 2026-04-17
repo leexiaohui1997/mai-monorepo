@@ -117,6 +117,7 @@ export const ChatPage: React.FC = () => {
           id: m.id,
           role: m.role as Message['role'],
           content: m.content,
+          reasoning: m.reasoning,
         }))
         activateSession(id, msgs, res.data?.hasMore ?? false)
         setCurrentConvId(id)
@@ -141,6 +142,7 @@ export const ChatPage: React.FC = () => {
             id: m.id,
             role: m.role as Message['role'],
             content: m.content,
+            reasoning: m.reasoning,
           }))
           activateSession(first.id, msgs, msgRes.data?.hasMore ?? false)
           setCurrentConvId(first.id)

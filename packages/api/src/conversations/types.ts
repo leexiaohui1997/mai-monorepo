@@ -3,6 +3,8 @@ export interface ChatMessage {
   id: string
   role: 'user' | 'assistant' | 'system'
   content: string
+  /** AI 思考过程（仅 assistant 消息可能存在） */
+  reasoning?: string
   createdAt: string
 }
 

@@ -107,6 +107,7 @@ export const ChatSession = forwardRef<ChatSessionHandle, Props>(
           id: m.id,
           role: m.role as Message['role'],
           content: m.content,
+          reasoning: m.reasoning,
         }))
         setMessages([...older, ...messages])
         setHasMoreState(res.data?.hasMore ?? false)

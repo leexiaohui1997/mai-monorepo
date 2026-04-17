@@ -14,6 +14,7 @@
     "@ai-sdk/anthropic": "^1.0.0",
     "@ai-sdk/mcp": "^1.0.36",
     "@ai-sdk/openai": "^1.0.0",
+    "@ai-sdk/openai-compatible": "0.2.16",
     "ai": "^4.0.0",
     "axios": "^1.15.0",
     "cors": "^2.8.5",

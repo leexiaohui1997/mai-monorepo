@@ -1,5 +1,5 @@
 import { createAnthropic } from '@ai-sdk/anthropic'
-import { createOpenAI } from '@ai-sdk/openai'
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { streamText } from 'ai'
 import { Router } from 'express'
 
@@ -15,6 +15,33 @@ const providerManager = new ProviderManager()
 
 const SYSTEM_PROMPT = '你是一个有帮助的 AI 助手。请用用户使用的语言回复，回答要准确、简洁。'
 
+/** 将 SSE 流中的 "reasoning" 字段名映射为 "reasoning_content"（Ollama 兼容） */
+async function reasoningMappedFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  const response = await fetch(input, init)
+  if (!response.body) return response
+
+  const reader = response.body.getReader()
+  const stream = new ReadableStream({
+    async pull(controller) {
+      const { done, value } = await reader.read()
+      if (done) return controller.close()
+
+      const text = new TextDecoder().decode(value)
+      const mapped = text.replaceAll('"reasoning":', '"reasoning_content":')
+      controller.enqueue(new TextEncoder().encode(mapped))
+    },
+  })
+
+  return new Response(stream, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  })
+}
+
 /** 根据 provider 配置和模型名创建 AI 模型实例 */
 function createModel(provider: ProviderConfig, modelName: string) {
   if (provider.type === 'anthropic') {
@@ -22,7 +49,12 @@ function createModel(provider: ProviderConfig, modelName: string) {
     return anthropic(modelName)
   }
 
-  const openai = createOpenAI({ apiKey: provider.apiKey, baseURL: provider.baseURL })
+  const openai = createOpenAICompatible({
+    name: provider.id,
+    baseURL: provider.baseURL ?? 'https://api.openai.com/v1',
+    apiKey: provider.apiKey,
+    fetch: reasoningMappedFetch as typeof globalThis.fetch,
+  })
   return openai(modelName)
 }
 
@@ -98,12 +130,16 @@ router.post('/', async (req, res) => {
     const result = streamText({
       model,
       messages: aiMessages,
-      onFinish: async ({ text }) => {
+      onFinish: async ({ text, reasoning }) => {
+        // 打印原始返回内容，用于调试
+        logger.info({ reasoning: reasoning || '(空)', text: text.slice(0, 200) }, 'AI 原始返回内容')
+
         // AI 回复完成后持久化
         const assistantMsg: ChatMessage = {
           id: crypto.randomUUID(),
           role: 'assistant',
           content: text,
+          reasoning: reasoning || undefined,
           createdAt: new Date().toISOString(),
         }
         appendMessage(capturedConvId, assistantMsg)
@@ -115,7 +151,7 @@ router.post('/', async (req, res) => {
     res.setHeader('X-Conversation-Id', convId)
 
     // 返回 AI SDK Data Stream 格式（toDataStreamResponse 返回同步 Response）
-    const streamResponse = result.toDataStreamResponse({ sendReasoning: false })
+    const streamResponse = result.toDataStreamResponse({ sendReasoning: true })
 
     // 复制 headers
     streamResponse.headers.forEach((value, key) => {
