@@ -3,10 +3,12 @@ import { useEffect, useRef, useCallback } from 'react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
+import { CitationProvider } from './citation/CitationContext'
 import { markdownComponents } from './markdown/registry'
 import { ThinkingBlock } from './ThinkingBlock'
 import { ToolInvocationBlock } from './tools/ToolInvocationBlock'
 
+import type { SearchSource } from './citation/parseCitations'
 import type { UIMessage } from 'ai'
 
 interface Props {
@@ -29,6 +31,24 @@ function SystemBubble({ message }: { message: UIMessage }) {
   )
 }
 
+/** 从 message parts 中提取搜索结果来源列表 */
+function extractSearchSources(parts: UIMessage['parts']): SearchSource[] {
+  const sources: SearchSource[] = []
+
+  for (const part of parts) {
+    if (part.type !== 'tool-invocation') continue
+    if (part.toolInvocation.toolName !== 'webSearch') continue
+    if (!('result' in part.toolInvocation)) continue
+
+    const result = part.toolInvocation.result as { success?: boolean; results?: SearchSource[] }
+    if (result?.success && result.results) {
+      sources.push(...result.results)
+    }
+  }
+
+  return sources
+}
+
 /** 渲染 assistant 消息的 parts（按时间顺序交错展示） */
 function AssistantParts({ message, isStreaming }: { message: UIMessage; isStreaming?: boolean }) {
   const { parts } = message
@@ -36,8 +56,11 @@ function AssistantParts({ message, isStreaming }: { message: UIMessage; isStream
   // 判断是否有文本内容（用于控制 ThinkingBlock 的流式状态）
   const hasTextPart = parts.some((p) => p.type === 'text' && p.text.trim())
 
+  // 提取搜索结果来源，供引用标记使用
+  const searchSources = extractSearchSources(parts)
+
   return (
-    <>
+    <CitationProvider value={searchSources}>
       {parts.map((part, index) => {
         const key = `${message.id}-part-${index}`
 
@@ -65,7 +88,7 @@ function AssistantParts({ message, isStreaming }: { message: UIMessage; isStream
         // step-start、source、file 等暂不渲染
         return null
       })}
-    </>
+    </CitationProvider>
   )
 }
 

@@ -5,9 +5,22 @@ import { search } from '../search/adapters'
 import { SearchProviderStorage } from '../search/storage'
 import logger from '../utils/logger'
 
-import type { SearchResponse } from '../search/types'
+import type { SearchResponse, SearchResult } from '../search/types'
 
 const storage = new SearchProviderStorage()
+
+/**
+ * 将搜索结果格式化为带编号的文本，供模型引用。
+ * 每条结果以 [n] 编号前缀，末尾附加引用指令。
+ */
+function formatResultsForModel(results: SearchResult[]): string {
+  const items = results.map((r, i) => `[${i + 1}] ${r.title}\n${r.snippet}\nURL: ${r.url}`)
+
+  const instruction =
+    '\n\n请在回答中使用 [编号] 格式（如 [1]、[2]）引用上述来源，标注在相关内容之后。'
+
+  return items.join('\n\n') + instruction
+}
 
 /**
  * 联网搜索工具
@@ -30,7 +43,8 @@ export const webSearchTool = tool({
     try {
       logger.info({ query, maxResults, provider: provider.name }, '执行联网搜索')
       const results = await search(provider, query, maxResults)
-      return { success: true, results }
+      const formattedForModel = formatResultsForModel(results)
+      return { success: true, results, formattedForModel }
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error)
       logger.error({ error: msg, query }, '联网搜索失败')

@@ -1,3 +1,5 @@
+import { CitationText } from '../citation/CitationText'
+
 import CodeBlock from './CodeBlock'
 import { ErrorBoundary } from './ErrorBoundary'
 
@@ -14,6 +16,22 @@ import type { ExtraProps } from 'react-markdown'
  * 所有自定义组件均由 ErrorBoundary 包裹，渲染异常时自动降级为默认元素
  */
 export const markdownComponents: Partial<Components> = {
+  // 段落：对文本子节点做引用标记替换
+  p({ children }) {
+    return (
+      <p>
+        <CitationText>{children}</CitationText>
+      </p>
+    )
+  },
+  // 列表项：对文本子节点做引用标记替换
+  li({ children }) {
+    return (
+      <li>
+        <CitationText>{children}</CitationText>
+      </li>
+    )
+  },
   // 重置 react-markdown 默认 <pre> 标签的样式，避免代码块外多余间距
   pre({ children }) {
     return <pre style={{ margin: 0, padding: 0 }}>{children}</pre>

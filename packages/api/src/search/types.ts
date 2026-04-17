@@ -36,6 +36,8 @@ export interface SearchResult {
 export interface SearchResponse {
   success: boolean
   results?: SearchResult[]
+  /** 带编号的搜索结果文本，供模型引用 */
+  formattedForModel?: string
   error?: string
 }
 
