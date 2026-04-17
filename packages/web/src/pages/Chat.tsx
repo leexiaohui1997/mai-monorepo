@@ -29,6 +29,23 @@ export const ChatPage: React.FC = () => {
   // 每个 ChatSession 的 ref，用于调用 stop()
   const sessionRefs = useRef<Map<string, ChatSessionHandle>>(new Map())
 
+  // tempId → realId 映射，避免 key 变化导致组件重建
+  const [idMapping, setIdMapping] = useState<Map<string, string>>(new Map())
+
+  // 通过 realId 反查 sessionKey（tempId）
+  const getSessionKey = useCallback(
+    (realId: string) => {
+      for (const [tempId, mapped] of idMapping) {
+        if (mapped === realId) return tempId
+      }
+      return realId
+    },
+    [idMapping],
+  )
+
+  // 获取当前会话的真实 ID（用于传给 ConversationList 做高亮）
+  const currentRealId = currentConvId ? (idMapping.get(currentConvId) ?? currentConvId) : null
+
   // 加载会话列表
   const refreshConversations = useCallback(async () => {
     try {
@@ -52,24 +69,37 @@ export const ChatPage: React.FC = () => {
     })
   }, [])
 
+  // 清理未使用的临时会话（没有获得 realId 的纯临时会话）
+  const cleanupPureTempSessions = useCallback(
+    (excludeKey?: string) => {
+      setConversations((prev) => prev.filter((c) => !isTempId(c.id)))
+      setActiveSessions((prev) => {
+        const tempKeys = [...prev.keys()].filter(
+          (k) => k.startsWith(TEMP_ID_PREFIX) && !idMapping.has(k) && k !== excludeKey,
+        )
+        if (!tempKeys.length) return prev
+        const next = new Map(prev)
+        tempKeys.forEach((k) => next.delete(k))
+        return next
+      })
+    },
+    [idMapping],
+  )
+
   // 切换会话
   const handleSelectConversation = useCallback(
     async (id: string) => {
-      // 切走时清理临时会话（非目标会话）
+      // id 可能是 realId（来自 conversations 列表），需转换为 sessionKey
+      const sessionKey = getSessionKey(id)
+
+      // 切走时清理未使用的纯临时会话
       if (!isTempId(id)) {
-        setConversations((prev) => prev.filter((c) => !isTempId(c.id)))
-        setActiveSessions((prev) => {
-          const tempKeys = [...prev.keys()].filter((k) => k.startsWith(TEMP_ID_PREFIX))
-          if (!tempKeys.length) return prev
-          const next = new Map(prev)
-          tempKeys.forEach((k) => next.delete(k))
-          return next
-        })
+        cleanupPureTempSessions()
       }
 
       // 已在活跃池中，直接切换
-      if (activeSessions.has(id)) {
-        setCurrentConvId(id)
+      if (activeSessions.has(sessionKey)) {
+        setCurrentConvId(sessionKey)
         return
       }
 
@@ -94,7 +124,7 @@ export const ChatPage: React.FC = () => {
         antMessage.error('加载消息失败')
       }
     },
-    [activeSessions, activateSession],
+    [activeSessions, activateSession, getSessionKey, cleanupPureTempSessions],
   )
 
   // 进入页面时加载会话列表并默认选中最近的会话
@@ -140,24 +170,10 @@ export const ChatPage: React.FC = () => {
     setCurrentConvId(tempId)
   }, [activateSession])
 
-  // 临时会话拿到真实 ID 时：迁移活跃池 + 更新会话列表
+  // 临时会话拿到真实 ID 时：记录映射 + 更新会话列表（不迁移 activeSessions key）
   const handleConversationCreated = useCallback((tempId: string, realId: string) => {
-    setCurrentConvId((prev) => (prev === tempId ? realId : prev))
+    setIdMapping((prev) => new Map(prev).set(tempId, realId))
     setConversations((prev) => prev.map((c) => (c.id === tempId ? { ...c, id: realId } : c)))
-    setActiveSessions((prev) => {
-      const entry = prev.get(tempId)
-      if (!entry) return prev
-      const next = new Map(prev)
-      next.delete(tempId)
-      next.set(realId, entry)
-      return next
-    })
-    // 迁移 ref
-    const handle = sessionRefs.current.get(tempId)
-    if (handle) {
-      sessionRefs.current.delete(tempId)
-      sessionRefs.current.set(realId, handle)
-    }
   }, [])
 
   // 用户发送第一条消息时更新临时会话标题
@@ -176,15 +192,24 @@ export const ChatPage: React.FC = () => {
     async (id: string) => {
       try {
         await chatService.deleteConversation(id)
+        const sessionKey = getSessionKey(id)
         // 从活跃池移除
         setActiveSessions((prev) => {
           const next = new Map(prev)
-          next.delete(id)
+          next.delete(sessionKey)
           return next
         })
-        sessionRefs.current.delete(id)
+        sessionRefs.current.delete(sessionKey)
+        // 清理映射
+        setIdMapping((prev) => {
+          if (!prev.has(sessionKey)) return prev
+          const next = new Map(prev)
+          next.delete(sessionKey)
+          return next
+        })
         const list = await refreshConversations()
-        if (id === currentConvId) {
+        const isCurrentDeleted = currentConvId === sessionKey || currentRealId === id
+        if (isCurrentDeleted) {
           if (list.length > 0) handleSelectConversation(list[0].id)
           else handleNewConversation()
         }
@@ -193,7 +218,14 @@ export const ChatPage: React.FC = () => {
         antMessage.error('删除失败')
       }
     },
-    [currentConvId, handleNewConversation, handleSelectConversation, refreshConversations],
+    [
+      currentConvId,
+      currentRealId,
+      getSessionKey,
+      handleNewConversation,
+      handleSelectConversation,
+      refreshConversations,
+    ],
   )
 
   // 重命名会话
@@ -213,7 +245,7 @@ export const ChatPage: React.FC = () => {
     <div className="flex h-full overflow-hidden">
       <ConversationList
         conversations={conversations}
-        currentId={currentConvId}
+        currentId={currentRealId}
         onSelect={handleSelectConversation}
         onNew={handleNewConversation}
         onDelete={handleDelete}
@@ -233,7 +265,7 @@ export const ChatPage: React.FC = () => {
                 if (handle) sessionRefs.current.set(id, handle)
                 else sessionRefs.current.delete(id)
               }}
-              conversationId={id}
+              conversationId={idMapping.get(id) ?? id}
               initialMessages={entry.initialMessages}
               isVisible={id === currentConvId}
               hasMore={entry.hasMore}

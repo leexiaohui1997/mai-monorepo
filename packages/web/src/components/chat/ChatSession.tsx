@@ -51,14 +51,17 @@ export const ChatSession = forwardRef<ChatSessionHandle, Props>(
     const [convId, setConvId] = useState(conversationId)
     const [hasMoreState, setHasMoreState] = useState(initialHasMore)
 
-    // 同步外部 conversationId 变化
+    // useChat 的 id 保持稳定，避免 props 变化时内部状态重置（惰性初始化只取首次值）
+    const [stableChatId] = useState(conversationId)
+
+    // 同步外部 conversationId 变化（tempId → realId）
     useEffect(() => {
       setConvId(conversationId)
     }, [conversationId])
 
     const { messages, isLoading, append, setMessages, stop } = useChat({
       api: `${API_BASE}/chat`,
-      id: conversationId,
+      id: stableChatId,
       initialMessages,
       body: { conversationId: isTempId(convId) ? null : convId },
       onError: (err) => antMessage.error(err.message || '聊天请求失败'),
