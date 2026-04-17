@@ -204,7 +204,7 @@ const ModelList: React.FC<{ provider: ProviderConfig; onRefresh: () => void }> =
           modelForm.resetFields()
         }}
         onOk={handleSaveModel}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={modelForm} layout="vertical">
           <Form.Item name="name" label="模型标识" rules={[{ required: true }]}>

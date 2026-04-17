@@ -1,10 +1,9 @@
 import { Spin } from 'antd'
 import { useEffect, useRef, useCallback } from 'react'
 import Markdown from 'react-markdown'
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import remarkGfm from 'remark-gfm'
 
+import { markdownComponents } from './markdown/registry'
 import { ThinkingBlock } from './ThinkingBlock'
 
 import type { Message } from 'ai'
@@ -14,15 +13,6 @@ interface Props {
   isLoading: boolean
   hasMore: boolean
   onLoadMore: () => void
-}
-
-/** 代码块渲染组件 */
-function CodeBlock({ language, children }: { language: string; children: string }) {
-  return (
-    <SyntaxHighlighter style={oneDark} language={language} PreTag="div">
-      {children}
-    </SyntaxHighlighter>
-  )
 }
 
 /** 系统消息气泡（居中、特殊样式） */
@@ -66,23 +56,7 @@ function MessageBubble({ message, isStreaming }: { message: Message; isStreaming
               <ThinkingBlock reasoning={reasoning} isStreaming={isStreaming && !hasContent} />
             )}
             <div className="prose prose-sm max-w-none md-prose">
-              <Markdown
-                remarkPlugins={[remarkGfm]}
-                components={{
-                  code({ className, children, ...props }) {
-                    const match = /language-(\w+)/.exec(className || '')
-                    const codeStr = String(children).replace(/\n$/, '')
-                    if (match) {
-                      return <CodeBlock language={match[1]}>{codeStr}</CodeBlock>
-                    }
-                    return (
-                      <code className={className} {...props}>
-                        {children}
-                      </code>
-                    )
-                  },
-                }}
-              >
+              <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                 {message.content}
               </Markdown>
             </div>
